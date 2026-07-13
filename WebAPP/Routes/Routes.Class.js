@@ -1,5 +1,6 @@
 import { Osemosys } from "../../Classes/Osemosys.Class.js";
 import { Message } from "../../Classes/Message.Class.js";
+import { MuiogoShell } from "../../Classes/MuiogoShell.Class.js";
 import { Model } from "./Routes.Model.js";
 
 export class Routes {
@@ -31,17 +32,36 @@ export class Routes {
             });
         });
 
+        MuiogoShell.applyModel();
+        MuiogoShell.initEvents();
+
         //Sidebar.Load(PARAMETERS);
+        //home depends on the selected model: OG-Core, CLEWS, or the pick screen
         crossroads.addRoute('/', function() {
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
-            import('../App/Controller/Home.js')
-            .then(Home => {
-                $( ".osy-content" ).load( 'App/View/Home.html', function() {
-                    localStorage.setItem("osy-pageId", "Home");
-                    Home.default.onLoad();
+            let selected = MuiogoShell.getModel();
+            if (selected == 'og'){
+                import('../App/Controller/OGCore.js')
+                .then(OGCore => {
+                    $( ".osy-content" ).load( 'App/View/OGCore.html', function() {
+                        localStorage.setItem("osy-pageId", "OGCore");
+                        OGCore.default.onLoad();
+                    });
                 });
-            });
-        }); 
+            }else if (selected == 'clews'){
+                import('../App/Controller/Home.js')
+                .then(Home => {
+                    $( ".osy-content" ).load( 'App/View/Home.html', function() {
+                        localStorage.setItem("osy-pageId", "Home");
+                        Home.default.onLoad();
+                    });
+                });
+            }else{
+                $( ".osy-content" ).load( 'App/View/ModelPick.html', function() {
+                    localStorage.setItem("osy-pageId", "ModelPick");
+                });
+            }
+        });
 
         // crossroads.addRoute('/Settings', function() {
         //     $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
@@ -90,6 +110,19 @@ export class Routes {
                 $( ".osy-content" ).load( 'App/View/LegacyImport.html', function() {
                     localStorage.setItem("osy-pageId", "LegacyImport");
                     ViewData.default.onLoad();
+                });
+            });
+        });
+        crossroads.addRoute('/OGCore', function() {
+            //deep link selects the model so the whole shell follows
+            MuiogoShell.setModel('og');
+            MuiogoShell.applyModel();
+            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
+            import('../App/Controller/OGCore.js')
+            .then(OGCore => {
+                $( ".osy-content" ).load( 'App/View/OGCore.html', function() {
+                    localStorage.setItem("osy-pageId", "OGCore");
+                    OGCore.default.onLoad();
                 });
             });
         });
@@ -186,6 +219,7 @@ export class Routes {
     }
 }
 
+MuiogoShell.applyModel();
 Routes.Load();
 
 
