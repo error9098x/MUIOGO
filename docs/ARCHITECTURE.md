@@ -32,10 +32,11 @@ Solver execution is handled by backend subprocess calls (GLPK/CBC).
 
 The static frontend is a two-model shell: a header selector switches between
 CLEWS (the existing MUIO interface, unchanged) and OG-Core. The selected model
-is kept in `localStorage` and drives per-model navigation through a body class
-(`WebAPP/Classes/MuiogoShell.Class.js`, `muiogo.css`). OG-Core pages are scoped
-UI islands (`.ogc-*` styles) and call the `/ogc` API through
-`WebAPP/Classes/Ogc.Class.js`.
+drives per-model navigation through a body class
+(`WebAPP/Classes/MuiogoShell.Class.js`, `muiogo.css`). Model-specific routes set
+that state explicitly; `localStorage` remembers the default used by `/`.
+OG-Core pages are scoped UI islands (`.ogc-*` styles) and call the `/ogc` API
+through `WebAPP/Classes/Ogc.Class.js`.
 
 ### Runtime data and outputs
 

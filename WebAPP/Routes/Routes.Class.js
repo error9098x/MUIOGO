@@ -24,6 +24,11 @@ export class Routes {
     }
 
     static getRoutes(model){
+        function enterModel(model){
+            MuiogoShell.setModel(model);
+            MuiogoShell.applyModel();
+        }
+
         //settings 
         import('../App/Controller/Settings.js')
         .then(Settings => {
@@ -38,8 +43,9 @@ export class Routes {
         //Sidebar.Load(PARAMETERS);
         //home depends on the selected model: OG-Core, CLEWS, or the pick screen
         crossroads.addRoute('/', function() {
-            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             let selected = MuiogoShell.getModel();
+            enterModel(selected);
+            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             if (selected == 'og'){
                 import('../App/Controller/OGCore.js')
                 .then(OGCore => {
@@ -74,6 +80,7 @@ export class Routes {
         // }); 
 
         crossroads.addRoute('/Config', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/Config.js')
             .then(Config => {
@@ -84,6 +91,7 @@ export class Routes {
             });
         });  
         crossroads.addRoute('/AddCase', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/AddCase.js')
             .then(AddCase => {
@@ -94,6 +102,7 @@ export class Routes {
             });
         }); 
         crossroads.addRoute('/ViewData', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/ViewData.js')
             .then(ViewData => {
@@ -104,6 +113,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/LegacyImport', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/LegacyImport.js')
             .then(ViewData => {
@@ -114,9 +124,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/OGCore', function() {
-            //deep link selects the model so the whole shell follows
-            MuiogoShell.setModel('og');
-            MuiogoShell.applyModel();
+            enterModel('og');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/OGCore.js')
             .then(OGCore => {
@@ -129,6 +137,7 @@ export class Routes {
         //dynamic routes
         function addAppRoute(group, id){
             return crossroads.addRoute(`/${group}/${id}`, function() {
+                enterModel('clews');
                 $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
                 import(`../App/Controller/${group}.js`)
                 .then(f => {
@@ -145,6 +154,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/DataFile', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/DataFile.js')
             .then(DataFile => {
@@ -155,6 +165,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/ModelFile', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/ModelFile.js')
             .then(ModelFile => {
@@ -170,6 +181,7 @@ export class Routes {
             localStorage.setItem("osy-pageId", "Versions");
         });
         crossroads.addRoute('/Pivot', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../AppResults/Controller/Pivot.js')
             .then(Pivot => {
@@ -180,6 +192,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/RESViewer', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/RESViewer.js')
             .then(RESViewer => {
@@ -190,6 +203,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/RESViewerMermaid', function() {
+            enterModel('clews');
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/RESViewerMermaid.js')
             .then(RESViewer => {
