@@ -429,6 +429,69 @@ def test_create_reform_opens_parameters_for_the_selected_baseline(page, base_url
     }
 
 
+def test_create_baseline_creates_its_container_and_opens_parameters(page, base_url):
+    page.goto(base_url)
+    page.evaluate("""localStorage.setItem('osy-ogc-country', JSON.stringify({
+        country_id: 'ETH', country_name: 'Ethiopia'
+    }))""")
+    page.goto(f"{base_url}/#/OGCases")
+    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    page.evaluate("""async () => {
+        const { default: Cases } = await import(new URL('App/Controller/OGCases.js', location.href).href);
+        const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
+        const { Ogc } = await import(new URL('Classes/Ogc.Class.js', location.href).href);
+        Cases.workspace = {country_id: 'ETH', country_name: 'Ethiopia'};
+        Cases.model = new Model([], {}, [{country_id: 'ETH'}], 'ETH');
+        window.__newCaseCalls = [];
+        Ogc.saveCase = async data => {
+            window.__newCaseCalls.push({method: 'saveCase', data});
+            return {status_code: 'created'};
+        };
+        Ogc.createRun = async data => {
+            window.__newCaseCalls.push({method: 'createRun', data});
+            return {status_code: 'success'};
+        };
+        Cases.initEvents();
+        Cases.openNewCase();
+    }""")
+    page.locator("#ogcCaseName").fill("Alternative baseline")
+    page.locator("#ogcCaseDesc").fill("A second policy starting point")
+    page.locator("[data-act='new-case-confirm']").click()
+    page.wait_for_url("**/#/OGParameters")
+
+    result = page.evaluate("""({
+        calls: window.__newCaseCalls,
+        selection: JSON.parse(localStorage.getItem('osy-ogc-selection'))
+    })""")
+    assert result['calls'] == [
+        {
+            'method': 'saveCase',
+            'data': {
+                'casename': 'Alternative baseline',
+                'country_id': 'ETH',
+                'description': 'A second policy starting point',
+            },
+        },
+        {
+            'method': 'createRun',
+            'data': {
+                'casename': 'Alternative baseline',
+                'run_name': 'baseline',
+                'run_type': 'baseline',
+                'description': 'A second policy starting point',
+            },
+        },
+    ]
+    assert result['selection'] == {
+        'casename': 'Alternative baseline',
+        'run_name': 'baseline',
+        'run_type': 'baseline',
+        'baseline_run': None,
+        'country_id': 'ETH',
+        'display_name': 'Alternative baseline',
+    }
+
+
 def test_run_queue_orders_dependencies_and_marks_cache(page, base_url):
     page.goto(base_url)
     result = page.evaluate("""async () => {
