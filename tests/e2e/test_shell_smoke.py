@@ -85,7 +85,9 @@ def test_switch_to_og(page, base_url):
     # page skeleton only: asserting catalog contents would depend on a live fetch
     expect(page.locator(".ogc-page")).to_be_visible()
     expect(page.locator("#Navi > li.nav-home")).to_be_visible()
-    expect(page.locator("#Navi > li:not(.nav-home):visible")).to_have_count(0)
+    # the OG workspace items are the only non-home menu shown in OG mode
+    expect(page.locator("#Navi > li:not(.nav-home):not(.nav-og):visible")).to_have_count(0)
+    expect(page.locator("#Navi > li.nav-og:visible")).to_have_count(2)
     expect(page.locator(".project-context")).to_be_hidden()
 
 
@@ -277,3 +279,248 @@ def test_polling_stops_when_leaving_og_page(page, base_url):
     settled = len(calls)
     page.wait_for_timeout(8_000)          # > 2x POLL_MS (3500)
     assert len(calls) == settled, f"polling outlived the page: {calls[settled:]}"
+def test_og_workspace_routes_assert_og_mode(page, base_url):
+    # the OG workspace pages set the shell mode themselves, like #/OGCore does
+    page.goto(f"{base_url}/#/OGCases")
+    expect(page.locator("body.osy-mode-og")).to_have_count(1)
+    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    page.goto(f"{base_url}/#/OGParameters")
+    expect(page.locator("body.osy-mode-og")).to_have_count(1)
+    expect(page.locator("#ogcParamsPage")).to_be_visible()
+
+
+def test_runs_are_read_from_the_grouped_shape(page, base_url):
+    """getRuns answers {baseline: [...], reform: [...]}, not a flat list. Reading
+    it as a list finds no runs and every case renders as empty."""
+    page.goto(f"{base_url}/#/OGCases")
+    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
+        const grouped = {
+            c1: {
+                baseline: [{ run_name: 'base', run_type: 'baseline', status: 'completed' }],
+                reform: [{ run_name: 'rf', run_type: 'reform', baseline_run: 'base', status: 'pending' }]
+            }
+        };
+        const m = new Model([{ casename: 'c1', country_id: 'ETH' }], grouped, [{ country_id: 'ETH' }]);
+        // a flat list must keep working too, so a backend change cannot blank the page
+        const flat = new Model(
+            [{ casename: 'c1', country_id: 'ETH' }],
+            { c1: [{ run_name: 'base', run_type: 'baseline' }] },
+            [{ country_id: 'ETH' }]
+        );
+        // an unknown group key is still a run the user made
+        const extra = new Model(
+            [{ casename: 'c1', country_id: 'ETH' }],
+            { c1: { baseline: [{ run_name: 'b', run_type: 'baseline' }],
+                    something_new: [{ run_name: 'x', run_type: 'other' }] } },
+            [{ country_id: 'ETH' }]
+        );
+        const c = m.cases[0];
+        return {
+            total: c.runs.length,
+            baselines: Model.baselines(c.runs).map(r => r.run_name),
+            reforms: Model.reformsOf(c.runs, 'base').map(r => r.run_name),
+            baseline_done: Model.baselineDone(c.runs, 'base'),
+            flat_total: flat.cases[0].runs.length,
+            extra_total: extra.cases[0].runs.length
+        };
+    }""")
+    assert result['total'] == 2, "the grouped shape must be flattened, not dropped"
+    assert result['baselines'] == ['base']
+    assert result['reforms'] == ['rf']
+    assert result['baseline_done'] is True
+    assert result['flat_total'] == 1, "a flat array must still be accepted"
+    assert result['extra_total'] == 2, "an unfamiliar group key must not lose its runs"
+
+
+def test_suffix_families_are_grouped_and_locked(page, base_url):
+    """OG-Core carries whole families of derived parameters (_preTP, _ge) that a
+    calibration can extend. Naming each one would go stale, so the suffix rules
+    file them as read-only reference data."""
+    page.goto(f"{base_url}/#/OGParameters")
+    result = page.evaluate("""async () => {
+        const m = await import(new URL('App/Model/OGParams.Overlay.js', location.href).href);
+        const mk = n => m.decorate(n, { title: n, shape: 'time', default: [[1]] });
+        return {
+            preTP: mk('omega_preTP'),
+            ge: mk('cit_rate_ge'),
+            // a name the rules do not match still falls through to the default
+            plain: mk('some_future_param'),
+            // an explicit mapping must win over a suffix rule
+            explicit: m.decorate('omega_S_preTP', { title: 'x', shape: 'time', default: [[1]] })
+        };
+    }""")
+    for key in ('preTP', 'ge'):
+        assert result[key]['group'] == 'arrays', f"{key} should be reference data"
+        assert result[key]['readOnly'] is True, f"{key} is derived, not a lever"
+        assert result[key]['readOnlyReason'] == 'calibration'
+    # an unmatched name keeps the old fallback behaviour
+    assert result['plain']['group'] == 'advanced'
+    assert result['plain']['readOnly'] is False
+    # a name that is both explicitly mapped and suffix-matched stays read-only
+    assert result['explicit']['readOnly'] is True
+
+
+def test_parameters_page_without_a_selection_is_empty(page, base_url):
+    """No run selected: the page must say so rather than call the backend."""
+    page.goto(f"{base_url}/#/OGParameters")
+    expect(page.locator("#ogcParamsPage")).to_be_visible()
+    expect(page.locator("#ogcParamsEmpty")).to_be_visible()
+    expect(page.locator("#ogcParamsEmptyTitle")).to_have_text("No run selected")
+    expect(page.locator("#ogcParamsEditbar")).to_be_hidden()
+
+
+def test_overlay_keeps_schema_facts_and_adds_decisions(page, base_url):
+    """The overlay must not overwrite title/range/default, only add what the
+    schema cannot express (read-only status, dimension, group)."""
+    page.goto(f"{base_url}/#/OGParameters")
+    result = page.evaluate("""async () => {
+        const m = await import(new URL('App/Model/OGParams.Overlay.js', location.href).href);
+        // a plain scalar policy lever
+        const cit = m.decorate('cit_rate', {
+            title: 'Corporate income tax rate', description: 'd',
+            section: 'Fiscal', subsection: null, type: 'rate', shape: 'scalar',
+            default: [[0.21]], min: 0, max: 0.99
+        });
+        // a structural dimension the run layer refuses to differ on
+        const S = m.decorate('S', {
+            title: 'Max age', type: 'count', shape: 'scalar',
+            default: [[80]], min: 3, max: 80
+        });
+        // a value the backend dropped for size
+        const e = m.decorate('e', {
+            title: 'Earnings ability', shape: 'time', default: null, large: true
+        });
+        // a per-group row the schema reports only as "time"
+        const beta = m.decorate('beta_annual', {
+            title: 'Time preference', shape: 'time',
+            default: [[0.96, 0.96]], min: 0, max: 0.9999
+        });
+        // a name the overlay does not know at all
+        const unknown = m.decorate('some_new_param', {
+            title: 'New', shape: 'scalar', default: [[1]]
+        });
+        return { cit, S, e, beta, unknown };
+    }""")
+    # schema facts survive
+    assert result['cit']['title'] == 'Corporate income tax rate'
+    assert result['cit']['min'] == 0 and result['cit']['max'] == 0.99
+    # decorate passes the schema default through untouched; unwrapping the
+    # broadcast form is OGParameters.Model.normalise's job, not the overlay's
+    assert result['cit']['def'] == [[0.21]]
+    assert result['cit']['readOnly'] is False
+    assert result['cit']['group'] == 'taxes'
+    # structural dimensions are locked, with the run-guard reason
+    assert result['S']['readOnly'] is True
+    assert result['S']['readOnlyReason'] == 'structural'
+    # a dropped value can never be an editable field
+    assert result['e']['large'] is True
+    assert result['e']['readOnly'] is True
+    # the overlay supplies the dimension the schema collapsed to "time"
+    assert result['beta']['dimension'] == 'by_j'
+    assert result['cit']['dimension'] == 'scalar'
+    # an unknown name still renders, it just lands in the fallback group
+    assert result['unknown']['readOnly'] is False
+    assert result['unknown']['group'] == 'advanced'
+
+
+def test_reform_reads_against_its_baseline_not_the_default(page, base_url):
+    """A reform's delta reference is its baseline's saved value; a baseline's is
+    the calibration default. Getting this backwards changes the question asked."""
+    page.goto(f"{base_url}/#/OGParameters")
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGParameters.Model.js', location.href).href);
+        const schema = { cit_rate: {
+            title: 'Corporate income tax rate', type: 'rate', shape: 'scalar',
+            default: [[0.21]], min: 0, max: 0.99
+        } };
+        // baseline moved the calibration default 0.21 -> 0.25
+        // reform moved its baseline 0.25 -> 0.15
+        const reform = new Model(
+            schema,
+            { cit_rate: [[0.15]] },
+            { casename: 'c1', run_name: 'rf', run_type: 'reform', baseline_run: 'base' },
+            { cit_rate: [[0.25]] }
+        );
+        const baseline = new Model(
+            schema,
+            { cit_rate: [[0.25]] },
+            { casename: 'c1', run_name: 'base', run_type: 'baseline' },
+            {}
+        );
+        return {
+            reform_ref_auto: reform.refValue('cit_rate', 'auto'),
+            reform_ref_def: reform.refValue('cit_rate', 'def'),
+            reform_cur: reform.cur.cit_rate,
+            reform_changed_vs_own: reform.isChanged('cit_rate', 'auto'),
+            reform_payload: reform.savePayload(),
+            baseline_ref_auto: baseline.refValue('cit_rate', 'auto'),
+            baseline_payload: baseline.savePayload()
+        };
+    }""")
+    # the reform is measured against the baseline's 0.25, not the default 0.21
+    assert result['reform_ref_auto'] == 0.25
+    assert result['reform_ref_def'] == 0.21
+    assert result['reform_cur'] == 0.15
+    assert result['reform_changed_vs_own'] is True
+    # saved values go back in the broadcast shape OG-Core expects
+    assert result['reform_payload'] == {'cit_rate': [[0.15]]}
+    # a baseline is measured against the calibration default
+    assert result['baseline_ref_auto'] == 0.21
+    assert result['baseline_payload'] == {'cit_rate': [[0.25]]}
+
+
+def test_preview_reference_does_not_change_what_is_saved(page, base_url):
+    """Pointing the deltas at another run is a look, not a re-attachment: the
+    saved payload is still computed against the run's true reference."""
+    page.goto(f"{base_url}/#/OGParameters")
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGParameters.Model.js', location.href).href);
+        const m = new Model(
+            { cit_rate: { title: 'c', type: 'rate', shape: 'scalar',
+                          default: [[0.21]], min: 0, max: 0.99 } },
+            { cit_rate: [[0.15]] },
+            { casename: 'c1', run_name: 'rf', run_type: 'reform', baseline_run: 'base' },
+            { cit_rate: [[0.15]] }          // baseline already at 0.15
+        );
+        // against its own baseline nothing moved, so nothing is saved
+        const unchanged = m.isChanged('cit_rate', 'auto');
+        const payloadBefore = m.savePayload();
+        // previewing against the calibration default shows a difference
+        const previewChanged = m.isChanged('cit_rate', 'def');
+        const payloadAfter = m.savePayload();
+        return { unchanged, payloadBefore, previewChanged, payloadAfter };
+    }""")
+    assert result['unchanged'] is False
+    assert result['payloadBefore'] == {}
+    # the preview shows a delta ...
+    assert result['previewChanged'] is True
+    # ... but changes nothing about what would be written
+    assert result['payloadAfter'] == {}
+
+
+def test_locked_dimensions_are_never_editable(page, base_url):
+    """RunJob refuses a reform whose S/T/J/M/I differ from its baseline, so the
+    form must not offer them even though the schema gives them a range."""
+    page.goto(f"{base_url}/#/OGParameters")
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGParameters.Model.js', location.href).href);
+        const { LOCKED_DIMS } = await import(new URL('App/Model/OGParams.Overlay.js', location.href).href);
+        const schema = {};
+        LOCKED_DIMS.forEach(d => {
+            schema[d] = { title: d, type: 'count', shape: 'scalar',
+                          default: [[10]], min: 1, max: 1000 };
+        });
+        schema.cit_rate = { title: 'c', type: 'rate', shape: 'scalar',
+                            default: [[0.21]], min: 0, max: 0.99 };
+        const m = new Model(schema, {}, { casename: 'c1', run_name: 'base', run_type: 'baseline' }, {});
+        const locked = {};
+        LOCKED_DIMS.forEach(d => { locked[d] = m.editable(d); });
+        return { locked, dims: LOCKED_DIMS, cit_editable: m.editable('cit_rate') };
+    }""")
+    # the five the run layer compares
+    assert sorted(result['dims']) == ['I', 'J', 'M', 'S', 'T']
+    assert all(v is False for v in result['locked'].values()), result['locked']
+    # a normal lever is still editable, so the lock is not blanket
+    assert result['cit_editable'] is True

@@ -1,0 +1,37 @@
+<div class="ogc-page" id="ogcCasesPage">
+
+  <h1 class="ogc-title">Cases</h1>
+  <div class="ogc-sub">A case holds one country calibration. Inside it, a baseline is a run of the model as calibrated, and a reform is the same model with parameters changed.</div>
+
+  <div class="ogc-srcnote" id="ogcCasesNote" style="display: none;"><i class="fa fa-info-circle"></i> No calibration is installed yet. Install one from the OG-Core home before creating a case.</div>
+
+  <div class="ogc-bar">
+    <span class="ogc-bar-h"><i class="fa fa-list-alt"></i> Cases and runs</span>
+    <span class="ogc-bar-right">
+      <button class="btn ogc-btn ogc-btn-main" data-act="new-case"><i class="fa fa-plus"></i> New case</button>
+    </span>
+  </div>
+
+  <table class="ogc-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Reforms</th>
+        <th>State</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="ogcCaseRows"></tbody>
+  </table>
+
+  <!-- shared dialog: new case, new run, delete confirmations -->
+  <div class="ogc-modal" id="ogcCasesModal" style="display: none;">
+    <div class="ogc-box">
+      <div class="ogc-box-head" id="ogcCasesModalHead"></div>
+      <div class="ogc-box-body" id="ogcCasesModalBody"></div>
+      <div class="ogc-box-foot" id="ogcCasesModalFoot"></div>
+    </div>
+  </div>
+
+</div>

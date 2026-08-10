@@ -135,6 +135,28 @@ export class Routes {
                 });
             });
         });
+        crossroads.addRoute('/OGCases', function() {
+            enterModel('og');
+            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
+            import('../App/Controller/OGCases.js')
+            .then(OGCases => {
+                $( ".osy-content" ).load( 'App/View/OGCases.html', function() {
+                    localStorage.setItem("osy-pageId", "OGCases");
+                    OGCases.default.onLoad();
+                });
+            });
+        });
+        crossroads.addRoute('/OGParameters', function() {
+            enterModel('og');
+            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
+            import('../App/Controller/OGParameters.js')
+            .then(OGParameters => {
+                $( ".osy-content" ).load( 'App/View/OGParameters.html', function() {
+                    localStorage.setItem("osy-pageId", "OGParameters");
+                    OGParameters.default.onLoad();
+                });
+            });
+        });
         //dynamic routes
         function addAppRoute(group, id){
             return crossroads.addRoute(`/${group}/${id}`, function() {

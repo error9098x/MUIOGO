@@ -66,4 +66,42 @@ export class Ogc {
     static unregisterCalibration(countryId) {
         return Ogc._request('POST', 'ogc/unregisterCalibration', { country_id: countryId });
     }
+
+    static getCases() {
+        return Ogc._request('GET', 'ogc/getCases');
+    }
+
+    static saveCase(data) {
+        return Ogc._request('POST', 'ogc/saveCase', data);
+    }
+
+    static deleteCase(casename) {
+        return Ogc._request('POST', 'ogc/deleteCase', { casename: casename });
+    }
+
+    static getRuns(casename) {
+        return Ogc._request('POST', 'ogc/getRuns', { casename: casename });
+    }
+
+    static createRun(data) {
+        return Ogc._request('POST', 'ogc/createRun', data);
+    }
+
+    static deleteRun(casename, runName) {
+        return Ogc._request('POST', 'ogc/deleteRun', { casename: casename, run_name: runName });
+    }
+
+    static getParams(casename, runName) {
+        return Ogc._request('POST', 'ogc/getParams', { casename: casename, run_name: runName });
+    }
+
+    static saveParams(casename, runName, params) {
+        return Ogc._request('POST', 'ogc/saveParams', {
+            casename: casename, run_name: runName, params: params
+        });
+    }
+
+    static getParameterSchema(casename) {
+        return Ogc._request('GET', 'ogc/getParameterSchema?casename=' + encodeURIComponent(casename));
+    }
 }
