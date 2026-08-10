@@ -6,21 +6,20 @@ import { Model } from "../Model/OGCases.Model.js";
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
     ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
-//run status -> [css class, label]
-const STATUS = {
-    'completed': ['ogc-tag-done', 'has results'],
-    'running': ['ogc-tag-run', 'running'],
-    'pending': ['ogc-tag-mut', 'not run'],
-    'failed': ['ogc-tag-need', 'failed'],
-    'cancelled': ['ogc-tag-mut', 'cancelled']
-};
-
 //async work from an older page visit must not repaint the new page
 let PAGE_ID = 0;
 
 //the case and run the parameters page opens, handed over through localStorage so
 //a reload of the parameters page keeps its context
 const SEL_KEY = 'osy-ogc-selection';
+const WORKSPACE_KEY = 'osy-ogc-country';
+const LAYOUT_KEY = 'osy-ogc-cases-layout';
+const STALE_KEY = 'osy-ogc-stale-runs';
+
+export function loadWorkspace(){
+    try { return JSON.parse(localStorage.getItem(WORKSPACE_KEY)) || null; }
+    catch (e) { return null; }
+}
 
 export function saveSelection(sel){
     if (sel){
@@ -35,19 +34,47 @@ export function loadSelection(){
     catch (e) { return null; }
 }
 
+function loadStale(){
+    try { return JSON.parse(localStorage.getItem(STALE_KEY)) || {}; }
+    catch (e) { return {}; }
+}
+
+export function markRunsStale(keys){
+    let stale = loadStale();
+    $.each(keys || [], function (id, key) { stale[key] = true; });
+    localStorage.setItem(STALE_KEY, JSON.stringify(stale));
+}
+
+export function isRunStale(key){
+    return !!loadStale()[key];
+}
+
+export function clearRunStale(key){
+    let stale = loadStale();
+    delete stale[key];
+    localStorage.setItem(STALE_KEY, JSON.stringify(stale));
+}
+
 export default class OGCases {
 
     static onLoad(){
+        OGCases.workspace = loadWorkspace();
+        if (!OGCases.workspace || !OGCases.workspace.country_id){
+            window.location.hash = '#/OGCore';
+            return;
+        }
         PAGE_ID++;
         OGCases.pageID = PAGE_ID;
+        OGCases.layout = localStorage.getItem(LAYOUT_KEY) || 'grouped';
+        OGCases.query = '';
         OGCases.refresh(true, PAGE_ID);
     }
 
     static isCurrent(pageID){
-        return pageID == PAGE_ID;
+        return pageID == PAGE_ID && localStorage.getItem('osy-pageId') == 'OGCases';
     }
 
-    // Load the cases, then every case's runs, and render one table.
+    // Load the backend case containers and present their configurations as cases.
     static refresh(initEvents, pageID){
         Promise.all([Ogc.getCases(), Ogc.getInstalledCalibrations()])
         .then(data => {
@@ -55,12 +82,15 @@ export default class OGCases {
                 return;
             }
             let [cases, installed] = data;
-            let list = cases.cases || [];
+            let list = $.isArray(cases) ? cases : (cases.cases || []);
+            list = $.grep(list, function (c) {
+                return c.country_id == OGCases.workspace.country_id;
+            });
             //runs come per case, so fetch them together and key by case name; a
             //case whose runs cannot be read still renders, with no runs
             return Promise.all($.map(list, function (c) {
                 return Ogc.getRuns(c.casename)
-                    .then(r => ({ casename: c.casename, runs: r.runs || [] }))
+                    .then(r => ({ casename: c.casename, runs: r.runs || r || [] }))
                     .catch(e => ({ casename: c.casename, runs: [] }));
             }))
             .then(runResults => {
@@ -69,7 +99,7 @@ export default class OGCases {
                 }
                 let runsByCase = {};
                 $.each(runResults, function (id, r) { runsByCase[r.casename] = r.runs; });
-                OGCases.model = new Model(list, runsByCase, installed.calibrations);
+                OGCases.model = new Model(list, runsByCase, installed.calibrations, OGCases.workspace.country_id);
                 OGCases.render(OGCases.model, pageID);
                 if (initEvents){
                     OGCases.initEvents();
@@ -81,7 +111,7 @@ export default class OGCases {
                 return;
             }
             Message.danger(error);
-            OGCases.model = new Model([], {}, []);
+            OGCases.model = new Model([], {}, [], OGCases.workspace.country_id);
             OGCases.render(OGCases.model, pageID);
             if (initEvents){
                 OGCases.initEvents();
@@ -93,85 +123,115 @@ export default class OGCases {
         if (!OGCases.isCurrent(pageID)){
             return;
         }
-        let rows = '';
-        $.each(model.cases, function (id, c) {
-            rows += OGCases.caseRows(c);
-        });
-        if (!rows){
-            rows = `<tr><td class="ogc-empty-cell" colspan="5">No cases yet. Create one to start configuring a baseline.</td></tr>`;
-        }
-        $('#ogcCaseRows').html(rows);
+        $('#ogcCasesTitle').text(OGCases.workspace.country_name + ' workspace');
+        $('#ogcCasesSub').text('An isolated workspace for ' + OGCases.workspace.country_name + '. Cases, runs, and results stay with this calibration.');
+        $('#ogcWorkspaceId').text(OGCases.workspace.country_id);
+        let entries = OGCases.entries(model);
+        let baselines = $.grep(entries, e => e.run.run_type == 'baseline');
+        let reforms = $.grep(entries, e => e.run.run_type == 'reform');
+        $('#ogcBaselineCount').text(baselines.length + 1);
+        $('#ogcReformCount').text(reforms.length);
+        OGCases.renderCases(entries);
         //a case needs an installed calibration to be created at all
-        $('[data-act="new-case"]').prop('disabled', model.installed.length == 0);
-        if (model.installed.length == 0){
+        let installed = !!model.records[OGCases.workspace.country_id];
+        $('[data-act="new-case"]').prop('disabled', !installed);
+        if (!installed){
             $('#ogcCasesNote').show();
         }else{
             $('#ogcCasesNote').hide();
         }
     }
 
-    // One case header row, then a row per run under it.
-    static caseRows(c){
-        let countryTag = c.installed
-            ? `<span class="ogc-tag ogc-tag-mut">${esc(c.country_id)}</span>`
-            : `<span class="ogc-tag ogc-tag-need" title="This calibration is no longer installed">${esc(c.country_id)} missing</span>`;
-        let html = `
-            <tr data-case="${esc(c.casename)}">
-                <td><i class="fa fa-folder-open-o"></i> <b>${esc(c.casename)}</b></td>
-                <td>${countryTag}</td>
-                <td class="ogc-mut">${esc(c.description)}</td>
-                <td class="ogc-mut">${esc(c.modified_at)}</td>
-                <td class="ogc-actcell">
-                    <button class="btn ogc-btn ogc-btn-sm" data-act="new-run" data-case="${esc(c.casename)}"><i class="fa fa-plus"></i> Add run</button>
-                    <button class="btn ogc-btn ogc-btn-ico" data-act="del-case" data-case="${esc(c.casename)}" title="Delete case"><i class="fa fa-times"></i></button>
-                </td>
-            </tr>`;
-
-        let baselines = Model.baselines(c.runs);
-        if (!baselines.length && !c.runs.length){
-            html += `<tr><td class="ogc-empty-cell ogc-rowsub" colspan="5">No runs yet. Add a baseline to configure parameters.</td></tr>`;
-            return html;
-        }
-        $.each(baselines, function (id, b) {
-            html += OGCases.runRow(c, b, false);
-            $.each(Model.reformsOf(c.runs, b.run_name), function (rid, r) {
-                html += OGCases.runRow(c, r, true);
-            });
+    static entries(model){
+        let entries = [];
+        $.each(model.cases, function (id, c) {
+            $.each(c.runs, function (rid, run) { entries.push({case: c, run: run}); });
         });
-        //a reform whose baseline was deleted would otherwise vanish silently
-        $.each(Model.orphanReforms(c.runs), function (id, r) {
-            html += OGCases.runRow(c, r, true, true);
-        });
-        return html;
+        return entries;
     }
 
-    static runRow(c, run, indent, orphan){
-        let status = STATUS[run.status] || ['ogc-tag-mut', run.status || 'not run'];
-        let kindTag = run.run_type == 'reform'
-            ? `<span class="ogc-tag ogc-tag-reform">reform</span>`
-            : `<span class="ogc-tag ogc-tag-base">baseline</span>`;
-        //a reform cannot be solved until its baseline has completed; surfaced here
-        //because the run layer refuses it anyway
-        let needs = '';
-        if (run.run_type == 'reform'){
-            if (orphan){
-                needs = ` <span class="ogc-tag ogc-tag-need" title="Its baseline no longer exists">baseline missing</span>`;
-            }else if (!Model.baselineDone(c.runs, run.baseline_run)){
-                needs = ` <span class="ogc-tag ogc-tag-need" title="Run its baseline first">needs its baseline</span>`;
-            }
+    static renderCases(entries){
+        let q = (OGCases.query || '').toLowerCase();
+        let visible = $.grep(entries, function (e) {
+            return !q || (e.run.run_name + ' ' + e.case.casename + ' ' + (e.run.baseline_run || '')).toLowerCase().indexOf(q) >= 0;
+        });
+        let baselines = $.grep(visible, e => e.run.run_type == 'baseline');
+        let reforms = $.grep(visible, e => e.run.run_type == 'reform');
+        $('#ogcLayoutLabel').text(OGCases.layout == 'grouped' ? 'Separate tables' : 'Group by baseline');
+        if (OGCases.layout == 'separate'){
+            $('#ogcCasesContent').html(`<div class="ogc-case-split">
+                ${OGCases.panel('cubes', 'Baselines', baselines, true)}
+                ${OGCases.panel('flask', 'Reforms', reforms, false)}
+            </div>`);
+            return;
         }
-        let from = run.run_type == 'reform' ? esc(run.baseline_run) : '&mdash;';
-        return `
-            <tr data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}">
-                <td class="ogc-rowsub">${esc(run.run_name)}${needs}</td>
-                <td>${kindTag}</td>
-                <td class="ogc-mut">${from}</td>
-                <td><span class="ogc-tag ${status[0]}">${esc(status[1])}</span></td>
-                <td class="ogc-actcell">
-                    <button class="btn ogc-btn ogc-btn-sm" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}"><i class="fa fa-sliders"></i> Parameters</button>
-                    <button class="btn ogc-btn ogc-btn-ico" data-act="del-run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Delete run"><i class="fa fa-times"></i></button>
-                </td>
-            </tr>`;
+        let rows = OGCases.defaultRow();
+        $.each(baselines, function (id, b) {
+            rows += OGCases.entryRows(b);
+            $.each(reforms, function (rid, r) {
+                if (r.case.casename == b.case.casename && r.run.baseline_run == b.run.run_name){
+                    rows += OGCases.entryRows(r, true);
+                }
+            });
+        });
+        $.each(reforms, function (id, r) {
+            let parent = $.grep(baselines, b => b.case.casename == r.case.casename && b.run.run_name == r.run.baseline_run);
+            if (!parent.length) rows += OGCases.entryRows(r, true);
+        });
+        $('#ogcCasesContent').html(OGCases.table(rows));
+    }
+
+    static panel(icon, title, entries, includeDefault){
+        let rows = includeDefault ? OGCases.defaultRow() : '';
+        $.each(entries, function (id, e) { rows += OGCases.entryRows(e); });
+        if (!rows) rows = `<tr><td class="ogc-empty-cell" colspan="4">No ${esc(title.toLowerCase())} yet.</td></tr>`;
+        return `<section class="ogc-case-panel"><h3><i class="fa fa-${icon}"></i> ${esc(title)} <span>(${entries.length + (includeDefault ? 1 : 0)})</span></h3>${OGCases.table(rows)}</section>`;
+    }
+
+    static table(rows){
+        return `<table class="ogc-table ogc-case-table"><thead><tr><th>Name</th><th>Type</th><th>Created from</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    static defaultRow(){
+        return `<tr class="ogc-case-row" data-act="expand" data-key="default">
+            <td><i class="fa fa-caret-right ogc-caret"></i> <b>Default baseline</b> <span class="ogc-tag ogc-tag-done"><i class="fa fa-lock"></i> default</span></td>
+            <td><span class="ogc-tag ogc-tag-base">baseline</span></td><td class="ogc-mut">&mdash;</td><td></td></tr>
+            <tr class="ogc-detail-row" data-detail="default" style="display:none"><td colspan="4"><div class="ogc-case-detail">
+                <div><label>Type</label>Default baseline (locked)</div><div><label>Country</label>${esc(OGCases.workspace.country_name)}</div>
+                <div><label>Calibration</label>${esc(OGCases.workspace.country_id)}</div><div><label>Changes vs default</label>none, it is the reference</div>
+            </div></td></tr>`;
+    }
+
+    static entryRows(entry, nested){
+        let c = entry.case, run = entry.run;
+        let key = c.casename + ':' + run.run_name;
+        let from = run.run_type == 'reform' ? OGCases.baselineDisplayName(c, run.baseline_run) : 'Default baseline';
+        let type = run.run_type == 'reform' ? 'reform' : 'baseline';
+        let name = OGCases.displayName(c, run);
+        let addReform = type == 'baseline'
+            ? `<button class="btn ogc-btn ogc-btn-sm" data-act="new-run" data-case="${esc(c.casename)}"><i class="fa fa-plus"></i> Add reform</button>`
+            : '';
+        return `<tr class="ogc-case-row${nested ? ' ogc-nested' : ''}" data-act="expand" data-key="${esc(key)}">
+            <td><i class="fa fa-caret-right ogc-caret"></i> <b>${esc(name)}</b></td>
+            <td><span class="ogc-tag ogc-tag-${type == 'reform' ? 'reform' : 'base'}">${type}</span></td>
+            <td class="ogc-mut">${esc(from)}</td>
+            <td class="ogc-actcell"><button class="btn ogc-btn ogc-btn-sm" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}"><i class="fa fa-pencil"></i> Edit</button>
+            <button class="btn ogc-btn ogc-btn-ico" data-act="del-run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Delete"><i class="fa fa-ellipsis-v"></i></button></td></tr>
+            <tr class="ogc-detail-row" data-detail="${esc(key)}" style="display:none"><td colspan="4"><div class="ogc-case-detail">
+                <div><label>Type</label>${type == 'reform' ? 'Reform' : 'User baseline'}</div><div><label>Created from</label>${esc(from)}</div>
+                <div><label>Backend case</label>${esc(c.casename)}</div><div><label>Description</label>${esc(type == 'reform' ? (run.description || 'No description') : (c.description || 'No description'))}</div>
+                ${addReform ? `<div class="ogc-detail-actions">${addReform}</div>` : ''}
+            </div></td></tr>`;
+    }
+
+    static displayName(c, run){
+        return run && run.run_type == 'baseline' && run.run_name == 'baseline'
+            ? c.casename : (run ? run.run_name : '');
+    }
+
+    static baselineDisplayName(c, runName){
+        let baseline = $.grep((c && c.runs) || [], r => r.run_type == 'baseline' && r.run_name == runName)[0];
+        return baseline ? OGCases.displayName(c, baseline) : runName;
     }
 
     //dialog
@@ -180,119 +240,182 @@ export default class OGCases {
         $('#ogcCasesModalHead').attr('class', 'ogc-box-head ' + (headClass || '')).html(head);
         $('#ogcCasesModalBody').html(body);
         $('#ogcCasesModalFoot').html(foot);
-        $('#ogcCasesModal').show();
+        $('#ogcCasesModal').removeAttr('data-case data-run data-type').show();
     }
 
     static closeModal(){
         $('#ogcCasesModal').hide();
     }
 
-    static openNewCase(){
-        let opts = '';
-        $.each(OGCases.model.installed, function (id, r) {
-            opts += `<option value="${esc(r.country_id)}">${esc(r.country_name)} (${esc(r.country_id)})</option>`;
+    static baselineChoices(){
+        let choices = [];
+        $.each((OGCases.model && OGCases.model.cases) || [], function (id, c) {
+            $.each(Model.baselines(c.runs), function (rid, run) {
+                choices.push({
+                    casename: c.casename,
+                    run_name: run.run_name,
+                    label: OGCases.displayName(c, run)
+                });
+            });
         });
-        let body = `
-            <div class="ogc-formrow">
-                <label>Case name</label>
-                <input type="text" id="ogcCaseName" placeholder="e.g. corp-tax-2026" maxlength="64">
-            </div>
-            <div class="ogc-formrow">
-                <label>Calibration</label>
-                <select id="ogcCaseCountry" class="ogc-select">${opts}</select>
-            </div>
-            <div class="ogc-formrow">
-                <label>Description</label>
-                <input type="text" id="ogcCaseDesc" placeholder="optional">
-            </div>
-            <div id="ogcCaseErr"></div>`;
-        let foot = `<button class="btn ogc-btn ogc-btn-line" data-act="close">Cancel</button>
-                    <button class="btn ogc-btn ogc-btn-main" data-act="new-case-confirm"><i class="fa fa-plus"></i> Create case</button>`;
-        OGCases.openModal(`<i class="fa fa-folder-open-o"></i> New case`, body, foot, '');
+        return choices;
     }
 
-    static newCaseConfirm(){
-        let casename = $.trim($('#ogcCaseName').val());
-        let countryId = $('#ogcCaseCountry').val();
-        let desc = $.trim($('#ogcCaseDesc').val());
-        if (!casename || !countryId){
-            $('#ogcCaseErr').html(`<div class="ogc-checknote ogc-checknote-warn">Give the case a name and pick a calibration.</div>`);
-            return;
-        }
-        let pageID = PAGE_ID;
-        Ogc.saveCase({ casename: casename, country_id: countryId, description: desc })
-        .then(response => {
-            OGCases.closeModal();
-            Message.smallBoxInfo('OG-Core', 'Case created.', 3000);
-            if (OGCases.isCurrent(pageID)){
-                OGCases.refresh(false, pageID);
-            }
-        })
-        .catch(error => {
-            $('#ogcCaseErr').html(`<div class="ogc-checknote ogc-checknote-warn"><i class="fa fa-times"></i> ${esc(error)}</div>`);
+    static nextBaselineName(){
+        let next = OGCases.baselineChoices().length + 1;
+        while (OGCases.findCase('Baseline ' + next)) next++;
+        return 'Baseline ' + next;
+    }
+
+    static openNewCase(type, preferredCase){
+        let choices = OGCases.baselineChoices();
+        OGCases.newCaseBaselines = choices;
+        let canReform = choices.length > 0;
+        type = type == 'reform' && canReform ? 'reform' : 'baseline';
+        let bopts = '';
+        $.each(choices, function (id, choice) {
+            let selected = preferredCase && choice.casename == preferredCase ? ' selected' : '';
+            bopts += `<option value="${id}"${selected}>${esc(choice.label)}</option>`;
         });
+        if (!canReform){
+            bopts = '<option value="">Create a baseline first</option>';
+        }
+        let baselineName = OGCases.nextBaselineName();
+        let body = `
+            <div class="ogc-formrow">
+                <label>Type</label>
+                <div class="ogc-type-switch" role="group" aria-label="Case type">
+                    <button type="button" data-act="case-type" data-type="baseline">Baseline</button>
+                    <button type="button" data-act="case-type" data-type="reform"${canReform ? '' : ' disabled title="Create a baseline before adding a reform"'}>Reform</button>
+                </div>
+            </div>
+            <div class="ogc-formrow">
+                <label>Name</label>
+                <input type="text" id="ogcCaseName" maxlength="64" autocomplete="off">
+            </div>
+            <div class="ogc-formrow" id="ogcCaseBaseWrap">
+                <label>Based on</label>
+                <select id="ogcCaseBaseline" class="ogc-select">${bopts}</select>
+            </div>
+            <div class="ogc-formrow">
+                <label>Description <span class="ogc-optional">(optional)</span></label>
+                <input type="text" id="ogcCaseDesc" maxlength="240">
+            </div>
+            <div class="ogc-form-note" id="ogcCaseNote"></div>
+            <div id="ogcCaseErr"></div>`;
+        let foot = `<button class="btn ogc-btn ogc-btn-line" data-act="close">Cancel</button>
+                    <button class="btn ogc-btn ogc-btn-main" data-act="new-case-confirm">Create and edit</button>`;
+        OGCases.openModal(`<i class="fa fa-pencil"></i> Add a case`, body, foot, '');
+        $('#ogcCasesModal')
+            .attr('data-baseline-name', baselineName)
+            .attr('data-reform-name', 'New reform');
+        OGCases.setNewCaseType(type);
+    }
+
+    static setNewCaseType(type){
+        if (type == 'reform' && !OGCases.newCaseBaselines.length) return;
+        let modal = $('#ogcCasesModal');
+        let previous = modal.attr('data-type');
+        if (previous){
+            modal.attr('data-' + previous + '-name', $.trim($('#ogcCaseName').val()));
+        }
+        modal.attr('data-type', type);
+        $('.ogc-type-switch [data-type]').each(function () {
+            let active = $(this).attr('data-type') == type;
+            $(this).toggleClass('active', active).attr('aria-pressed', active ? 'true' : 'false');
+        });
+        let reform = type == 'reform';
+        $('#ogcCaseBaseWrap').toggle(reform);
+        $('#ogcCaseName').val(modal.attr('data-' + type + '-name'));
+        $('#ogcCaseDesc').attr('placeholder', reform ? 'What does this reform change?' : 'What is this baseline for?');
+        $('#ogcCaseNote').html(reform
+            ? `<i class="fa fa-info-circle"></i> The reform inherits this baseline's values and is compared against it.`
+            : '<i class="fa fa-info-circle"></i> Starts from the calibration default.');
+        $('#ogcCaseErr').empty();
+        $('#ogcCaseName').focus().select();
     }
 
     static openNewRun(casename){
-        let c = OGCases.findCase(casename);
-        let baselines = c ? Model.baselines(c.runs) : [];
-        let bopts = '';
-        $.each(baselines, function (id, b) {
-            bopts += `<option value="${esc(b.run_name)}">${esc(b.run_name)}</option>`;
-        });
-        //a reform needs a baseline to attach to, so without one only a baseline
-        //can be created
-        let canReform = baselines.length > 0;
-        let body = `
-            <div class="ogc-formrow">
-                <label>Run name</label>
-                <input type="text" id="ogcRunName" placeholder="e.g. baseline or corp-tax-cut" maxlength="64">
-            </div>
-            <div class="ogc-formrow">
-                <label>Type</label>
-                <select id="ogcRunType" class="ogc-select">
-                    <option value="baseline">Baseline</option>
-                    <option value="reform"${canReform ? '' : ' disabled'}>Reform${canReform ? '' : ' (needs a baseline first)'}</option>
-                </select>
-            </div>
-            <div class="ogc-formrow" id="ogcRunBaseWrap" style="display: none;">
-                <label>Reforms this baseline</label>
-                <select id="ogcRunBaseline" class="ogc-select">${bopts}</select>
-            </div>
-            <div id="ogcRunErr"></div>`;
-        let foot = `<button class="btn ogc-btn ogc-btn-line" data-act="close">Cancel</button>
-                    <button class="btn ogc-btn ogc-btn-main" data-act="new-run-confirm"><i class="fa fa-plus"></i> Create run</button>`;
-        OGCases.openModal(`<i class="fa fa-plus-circle"></i> New run in ${esc(casename)}`, body, foot, '');
-        $('#ogcCasesModal').attr('data-case', casename);
+        OGCases.openNewCase('reform', casename);
     }
 
-    static newRunConfirm(casename){
-        let runName = $.trim($('#ogcRunName').val());
-        let runType = $('#ogcRunType').val();
-        let baseline = $('#ogcRunBaseline').val();
-        if (!runName){
-            $('#ogcRunErr').html(`<div class="ogc-checknote ogc-checknote-warn">Give the run a name.</div>`);
+    static requireCreated(response, fallback){
+        if (response && (response.status_code == 'error' || response.status_code == 'exist')){
+            throw (response.message || fallback);
+        }
+        return response;
+    }
+
+    static newCaseConfirm(){
+        let type = $('#ogcCasesModal').attr('data-type') || 'baseline';
+        let name = $.trim($('#ogcCaseName').val());
+        let description = $.trim($('#ogcCaseDesc').val());
+        let countryId = OGCases.workspace.country_id;
+        if (!name){
+            $('#ogcCaseErr').html('<div class="ogc-checknote ogc-checknote-warn">Give the case a name.</div>');
             return;
         }
-        if (runType == 'reform' && !baseline){
-            $('#ogcRunErr').html(`<div class="ogc-checknote ogc-checknote-warn">Pick the baseline this reform is built on.</div>`);
-            return;
+
+        let request, selection;
+        if (type == 'baseline'){
+            if (OGCases.findCase(name)){
+                $('#ogcCaseErr').html('<div class="ogc-checknote ogc-checknote-warn">A baseline with this name already exists.</div>');
+                return;
+            }
+            request = Ogc.saveCase({ casename: name, country_id: countryId, description: description })
+                .then(response => OGCases.requireCreated(response, 'The baseline could not be created.'))
+                .then(() => Ogc.createRun({
+                    casename: name, run_name: 'baseline', run_type: 'baseline', description: description
+                }));
+            selection = {
+                casename: name, run_name: 'baseline', run_type: 'baseline',
+                baseline_run: null, country_id: countryId, display_name: name
+            };
+        }else{
+            let choice = OGCases.newCaseBaselines[parseInt($('#ogcCaseBaseline').val(), 10)];
+            if (!choice){
+                $('#ogcCaseErr').html('<div class="ogc-checknote ogc-checknote-warn">Pick the baseline this reform is built on.</div>');
+                return;
+            }
+            let parent = OGCases.findCase(choice.casename);
+            let duplicate = false;
+            $.each((parent && parent.runs) || [], function (id, run) {
+                if (run.run_name == name) duplicate = true;
+            });
+            if (duplicate){
+                $('#ogcCaseErr').html('<div class="ogc-checknote ogc-checknote-warn">A case with this name already exists under that baseline.</div>');
+                return;
+            }
+            request = Ogc.createRun({
+                casename: choice.casename,
+                run_name: name,
+                run_type: 'reform',
+                baseline_run: choice.run_name,
+                description: description
+            });
+            selection = {
+                casename: choice.casename, run_name: name, run_type: 'reform',
+                baseline_run: choice.run_name, country_id: countryId,
+                display_name: name, baseline_display_name: choice.label
+            };
         }
-        let payload = { casename: casename, run_name: runName, run_type: runType };
-        if (runType == 'reform'){
-            payload.baseline_run = baseline;
-        }
+
         let pageID = PAGE_ID;
-        Ogc.createRun(payload)
+        let confirm = $('#ogcCasesModal [data-act="new-case-confirm"]');
+        confirm.prop('disabled', true).text('Creating...');
+        request
+        .then(response => OGCases.requireCreated(response, 'The case could not be created.'))
         .then(response => {
             OGCases.closeModal();
-            Message.smallBoxInfo('OG-Core', 'Run created.', 3000);
+            Message.smallBoxInfo('OG-Core', type == 'reform' ? 'Reform created.' : 'Baseline created.', 3000);
             if (OGCases.isCurrent(pageID)){
-                OGCases.refresh(false, pageID);
+                saveSelection(selection);
+                window.location.hash = '#/OGParameters';
             }
         })
         .catch(error => {
-            $('#ogcRunErr').html(`<div class="ogc-checknote ogc-checknote-warn"><i class="fa fa-times"></i> ${esc(error)}</div>`);
+            confirm.prop('disabled', false).text('Create and edit');
+            $('#ogcCaseErr').html(`<div class="ogc-checknote ogc-checknote-warn"><i class="fa fa-times"></i> ${esc(error)}</div>`);
         });
     }
 
@@ -310,9 +433,9 @@ export default class OGCases {
         let warn = reforms.length
             ? `<p class="ogc-mut" style="margin-top:8px"><i class="fa fa-exclamation-triangle"></i> ${reforms.length} reform${reforms.length == 1 ? '' : 's'} built on this baseline will lose it and cannot be solved until reattached.</p>`
             : '';
-        let body = `<p>Delete the run <b>${esc(runName)}</b> and its results? This cannot be undone.</p>${warn}`;
+        let body = `<p>Delete the case configuration <b>${esc(runName)}</b> and its results? This cannot be undone.</p>${warn}`;
         let foot = `<button class="btn ogc-btn ogc-btn-line" data-act="close">Cancel</button>
-                    <button class="btn ogc-btn ogc-btn-danger" data-act="del-run-confirm">Delete run</button>`;
+                    <button class="btn ogc-btn ogc-btn-danger" data-act="del-run-confirm">Delete case</button>`;
         OGCases.openModal(`<i class="fa fa-exclamation-triangle"></i> Delete ${esc(runName)}?`, body, foot, 'ogc-head-err');
         $('#ogcCasesModal').attr('data-case', casename).attr('data-run', runName);
     }
@@ -344,7 +467,7 @@ export default class OGCases {
             if (sel && sel.casename == casename && sel.run_name == runName){
                 saveSelection(null);
             }
-            Message.smallBoxInfo('OG-Core', 'Run deleted.', 3000);
+            Message.smallBoxInfo('OG-Core', 'Case deleted.', 3000);
             if (OGCases.isCurrent(pageID)){
                 OGCases.refresh(false, pageID);
             }
@@ -369,7 +492,11 @@ export default class OGCases {
             run_name: runName,
             run_type: run ? run.run_type : 'baseline',
             baseline_run: run ? (run.baseline_run || null) : null,
-            country_id: c ? c.country_id : null
+            country_id: c ? c.country_id : null,
+            display_name: run ? OGCases.displayName(c, run) : runName,
+            baseline_display_name: run && run.run_type == 'reform'
+                ? OGCases.baselineDisplayName(c, run.baseline_run)
+                : null
         });
         window.location.hash = '#/OGParameters';
     }
@@ -396,6 +523,22 @@ export default class OGCases {
             if (act == 'params') OGCases.openParams(casename, runName);
             if (act == 'del-case') OGCases.openDeleteCase(casename);
             if (act == 'del-run') OGCases.openDeleteRun(casename, runName);
+            if (act == 'layout'){
+                OGCases.layout = OGCases.layout == 'grouped' ? 'separate' : 'grouped';
+                localStorage.setItem(LAYOUT_KEY, OGCases.layout);
+                OGCases.renderCases(OGCases.entries(OGCases.model));
+            }
+            if (act == 'expand'){
+                let key = $(this).attr('data-key');
+                let detail = $('.ogc-detail-row').filter(function () { return $(this).attr('data-detail') == key; });
+                detail.toggle();
+                $(this).toggleClass('ogc-expanded', detail.is(':visible'));
+            }
+        });
+
+        $('#ogcCasesPage').off('input.ogcases').on('input.ogcases', '#ogcCaseSearch', function () {
+            OGCases.query = $(this).val();
+            OGCases.renderCases(OGCases.entries(OGCases.model));
         });
 
         $('#ogcCasesModal').off('click.ogcases').on('click.ogcases', '[data-act]', function (e) {
@@ -404,19 +547,10 @@ export default class OGCases {
             let casename = $('#ogcCasesModal').attr('data-case');
             let runName = $('#ogcCasesModal').attr('data-run');
             if (act == 'close') OGCases.closeModal();
+            if (act == 'case-type') OGCases.setNewCaseType($(this).attr('data-type'));
             if (act == 'new-case-confirm') OGCases.newCaseConfirm();
-            if (act == 'new-run-confirm') OGCases.newRunConfirm(casename);
             if (act == 'del-case-confirm') OGCases.deleteCaseConfirm(casename);
             if (act == 'del-run-confirm') OGCases.deleteRunConfirm(casename, runName);
-        });
-
-        //the reform baseline picker only applies to a reform
-        $('#ogcCasesModal').off('change.ogcases').on('change.ogcases', '#ogcRunType', function () {
-            if ($(this).val() == 'reform'){
-                $('#ogcRunBaseWrap').show();
-            }else{
-                $('#ogcRunBaseWrap').hide();
-            }
         });
 
         //the dimmed backdrop closes the dialog

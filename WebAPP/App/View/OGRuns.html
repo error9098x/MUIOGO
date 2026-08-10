@@ -1,0 +1,34 @@
+<div class="ogc-page" id="ogcRunsPage">
+  <div class="ogc-run-workspace">
+    <span id="ogcRunWorkspace"></span>
+    <a href="#/OGCases">&larr; back to cases</a>
+  </div>
+
+  <h1 class="ogc-title" id="ogcRunsTitle">Run</h1>
+  <div class="ogc-sub" id="ogcRunsSub">Pick the cases to solve.</div>
+
+  <div class="ogc-run-controls">
+    <label><input type="checkbox" id="ogcForceRun"> Force re-run cached</label>
+    <span class="ogc-run-actions">
+      <button class="btn ogc-btn ogc-btn-danger" id="ogcCancelRun" data-act="cancel" style="display:none"><i class="fa fa-stop"></i> Cancel</button>
+      <button class="btn ogc-btn ogc-btn-main" id="ogcRunSelected" data-act="run-selected"><i class="fa fa-play"></i> Run selected</button>
+    </span>
+  </div>
+
+  <div class="ogc-run-layout">
+    <section class="ogc-run-panel">
+      <h3><i class="fa fa-list"></i> Select to run
+        <button class="btn ogc-btn ogc-btn-sm" id="ogcSelectAll" data-act="select-all"><i class="fa fa-check-square-o"></i> Select all / clear</button>
+      </h3>
+      <table class="ogc-table ogc-run-table">
+        <thead><tr><th></th><th>Name</th><th>Created from</th><th>State</th></tr></thead>
+        <tbody id="ogcRunRows"></tbody>
+      </table>
+    </section>
+
+    <section class="ogc-run-panel">
+      <h3><i class="fa fa-tasks"></i> Queue &amp; history</h3>
+      <div id="ogcQueueBody"></div>
+    </section>
+  </div>
+</div>

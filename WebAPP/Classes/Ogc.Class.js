@@ -72,7 +72,13 @@ export class Ogc {
     }
 
     static saveCase(data) {
-        return Ogc._request('POST', 'ogc/saveCase', data);
+        return Ogc._request('POST', 'ogc/saveCase', {
+            data: {
+                'ogc-casename': data.casename,
+                'ogc-description': data.description || '',
+                country_id: data.country_id
+            }
+        });
     }
 
     static deleteCase(casename) {
@@ -80,11 +86,23 @@ export class Ogc {
     }
 
     static getRuns(casename) {
-        return Ogc._request('POST', 'ogc/getRuns', { casename: casename });
+        return Ogc._request('POST', 'ogc/getRuns', { casename: casename })
+            .then(Ogc.normaliseRuns);
     }
 
     static createRun(data) {
-        return Ogc._request('POST', 'ogc/createRun', data);
+        let payload = {
+            casename: data.casename,
+            run_name: data.run_name,
+            run_type: data.run_type
+        };
+        if (data.baseline_run){
+            payload.baseline_run_name = data.baseline_run;
+        }
+        if (data.description){
+            payload.description = data.description;
+        }
+        return Ogc._request('POST', 'ogc/createRun', payload);
     }
 
     static deleteRun(casename, runName) {
@@ -92,7 +110,8 @@ export class Ogc {
     }
 
     static getParams(casename, runName) {
-        return Ogc._request('POST', 'ogc/getParams', { casename: casename, run_name: runName });
+        return Ogc._request('POST', 'ogc/getParams', { casename: casename, run_name: runName })
+            .then(params => ({ params: params.params || params }));
     }
 
     static saveParams(casename, runName, params) {
@@ -103,5 +122,52 @@ export class Ogc {
 
     static getParameterSchema(casename) {
         return Ogc._request('GET', 'ogc/getParameterSchema?casename=' + encodeURIComponent(casename));
+    }
+
+    static run(casename, runName, timePath) {
+        return Ogc._request('POST', 'ogc/run', {
+            casename: casename,
+            run_name: runName,
+            time_path: !!timePath
+        });
+    }
+
+    static getRunStatus(casename, runName) {
+        return Ogc._request('POST', 'ogc/getRunStatus', {
+            casename: casename,
+            run_name: runName
+        });
+    }
+
+    static cancelRun(casename, runName) {
+        return Ogc._request('POST', 'ogc/cancelRun', {
+            casename: casename,
+            run_name: runName
+        });
+    }
+
+    static normaliseRuns(response) {
+        let raw = response && response.runs ? response.runs : response;
+        let list = [];
+        if ($.isArray(raw)){
+            list = raw;
+        }else if (raw){
+            $.each(['baseline', 'reform', 'reforms'], function (id, key) {
+                let value = raw[key];
+                if (!value) return;
+                if ($.isArray(value)){
+                    list = list.concat(value);
+                }else{
+                    list.push(value);
+                }
+            });
+        }
+        return { runs: $.map(list, function (run) {
+            return $.extend({}, run, {
+                run_name: run.run_name || run.RunName,
+                run_type: run.run_type || run.RunType,
+                baseline_run: run.baseline_run || run.baseline_run_name || null
+            });
+        }) };
     }
 }

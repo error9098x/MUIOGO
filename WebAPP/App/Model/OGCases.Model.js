@@ -1,6 +1,6 @@
 export class Model {
 
-    constructor (cases, runsByCase, installed) {
+    constructor (cases, runsByCase, installed, countryId) {
         this.installed = installed || [];
         this.records = {};
         let records = this.records;
@@ -8,6 +8,9 @@ export class Model {
 
         let self = this;
         this.cases = ($.map(cases || [], function (c) {
+            if (countryId && c.country_id != countryId){
+                return null;
+            }
             let runs = self.flattenRuns((runsByCase || {})[c.casename]);
             return {
                 casename: c.casename,
@@ -19,6 +22,8 @@ export class Model {
                 runs: runs
             };
         }));
+
+        this.countryId = countryId || null;
 
         this.pageID = 'OGCases';
     }

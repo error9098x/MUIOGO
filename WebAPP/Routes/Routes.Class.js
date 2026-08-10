@@ -28,6 +28,12 @@ export class Routes {
         function enterModel(model){
             MuiogoShell.setModel(model);
             MuiogoShell.applyModel();
+            $('body').removeClass('osy-og-workspace');
+        }
+
+        function enterWorkspace(){
+            enterModel('og');
+            $('body').addClass('osy-og-workspace');
         }
 
         //settings 
@@ -136,7 +142,7 @@ export class Routes {
             });
         });
         crossroads.addRoute('/OGCases', function() {
-            enterModel('og');
+            enterWorkspace();
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/OGCases.js')
             .then(OGCases => {
@@ -147,13 +153,24 @@ export class Routes {
             });
         });
         crossroads.addRoute('/OGParameters', function() {
-            enterModel('og');
+            enterWorkspace();
             $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
             import('../App/Controller/OGParameters.js')
             .then(OGParameters => {
                 $( ".osy-content" ).load( 'App/View/OGParameters.html', function() {
                     localStorage.setItem("osy-pageId", "OGParameters");
                     OGParameters.default.onLoad();
+                });
+            });
+        });
+        crossroads.addRoute('/OGRuns', function() {
+            enterWorkspace();
+            $('#content').html('<h1 class="ajax-loading-animation"><i class="fa fa-cog fa-spin"></i> Loading...</h1>');
+            import('../App/Controller/OGRuns.js')
+            .then(OGRuns => {
+                $( ".osy-content" ).load( 'App/View/OGRuns.html', function() {
+                    localStorage.setItem("osy-pageId", "OGRuns");
+                    OGRuns.default.onLoad();
                 });
             });
         });
@@ -278,6 +295,5 @@ export class Routes {
 
 MuiogoShell.applyModel();
 Routes.Load();
-
 
 

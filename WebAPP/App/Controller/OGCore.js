@@ -50,6 +50,7 @@ let PAGE_ID = 0;
 
 //last known job state by country, used to keep the live dialog current
 let JOB_STATE = {};
+const WORKSPACE_KEY = 'osy-ogc-country';
 
 export default class OGCore {
     static onLoad(){
@@ -175,7 +176,10 @@ export default class OGCore {
                     </div>
                     <span class="ogc-badge ${badge[0]}">${esc(badge[1])}</span>
                 </div>
-                <div class="ogc-card-actions">${OGCore.actionsHtml(c, record)}</div>
+                <div class="ogc-card-actions" data-state="${esc(c.install_state)}">
+                    ${active ? `<button class="btn ogc-btn ogc-btn-main" data-act="open-workspace" data-country="${esc(c.country_id)}"><i class="fa fa-folder-open-o"></i> Open workspace</button>` : ''}
+                    ${OGCore.actionsHtml(c, record)}
+                </div>
             </div>`;
     }
 
@@ -738,6 +742,18 @@ export default class OGCore {
             let act = $(this).attr('data-act');
             if (act == 'add'){
                 OGCore.openAdd();
+                return;
+            }
+            if (act == 'open-workspace'){
+                let countryId = $(this).attr('data-country');
+                let country = OGCore.findCalibration(countryId);
+                if (country){
+                    localStorage.setItem(WORKSPACE_KEY, JSON.stringify({
+                        country_id: country.country_id,
+                        country_name: country.country_name
+                    }));
+                    window.location.hash = '#/OGCases';
+                }
                 return;
             }
             let countryId = $(this).closest('.ogc-card').attr('data-country');

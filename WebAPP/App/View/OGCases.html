@@ -1,31 +1,31 @@
 <div class="ogc-page" id="ogcCasesPage">
 
-  <h1 class="ogc-title">Cases</h1>
-  <div class="ogc-sub">A case holds one country calibration. Inside it, a baseline is a run of the model as calibrated, and a reform is the same model with parameters changed.</div>
+  <h1 class="ogc-title" id="ogcCasesTitle">Country workspace</h1>
+  <div class="ogc-sub" id="ogcCasesSub">Cases and parameters are isolated to this country calibration.</div>
 
   <div class="ogc-srcnote" id="ogcCasesNote" style="display: none;"><i class="fa fa-info-circle"></i> No calibration is installed yet. Install one from the OG-Core home before creating a case.</div>
 
-  <div class="ogc-bar">
-    <span class="ogc-bar-h"><i class="fa fa-list-alt"></i> Cases and runs</span>
+  <div class="ogc-ctxbar">
+    <b class="ogc-mono" id="ogcWorkspaceId"></b>
+    <span><b id="ogcBaselineCount">0</b> baselines</span>
+    <span><b id="ogcReformCount">0</b> reforms</span>
     <span class="ogc-bar-right">
-      <button class="btn ogc-btn ogc-btn-main" data-act="new-case"><i class="fa fa-plus"></i> New case</button>
+      <a class="btn ogc-btn" href="#/OGCore"><i class="fa fa-exchange"></i> Change country</a>
+      <button class="btn ogc-btn ogc-btn-main" data-act="new-case"><i class="fa fa-plus"></i> Add case</button>
     </span>
   </div>
 
-  <table class="ogc-table">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Reforms</th>
-        <th>State</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="ogcCaseRows"></tbody>
-  </table>
+  <div class="ogc-bar">
+    <span class="ogc-bar-h"><i class="fa fa-list-alt"></i> Cases</span>
+    <span class="ogc-bar-right">
+      <span class="ogc-search"><i class="fa fa-search"></i><input id="ogcCaseSearch" type="search" placeholder="Search cases..."></span>
+      <button class="btn ogc-btn" data-act="layout"><i class="fa fa-columns"></i> <span id="ogcLayoutLabel">Separate tables</span></button>
+    </span>
+  </div>
 
-  <!-- shared dialog: new case, new run, delete confirmations -->
+  <div id="ogcCasesContent"></div>
+
+  <!-- shared dialog: new case, reform, and delete confirmations -->
   <div class="ogc-modal" id="ogcCasesModal" style="display: none;">
     <div class="ogc-box">
       <div class="ogc-box-head" id="ogcCasesModalHead"></div>

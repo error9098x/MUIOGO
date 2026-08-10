@@ -71,10 +71,10 @@ export class Model {
             return value;
         }
         if (f.dimension == 'scalar'){
-            return [[value]];
+            return value;
         }
         if (f.dimension == 'by_j'){
-            return [value];
+            return value;
         }
         return value;
     }
@@ -103,7 +103,7 @@ export class Model {
         if ($.inArray(name, LOCKED_DIMS) >= 0){
             return false;
         }
-        return f.dimension == 'scalar' || f.dimension == 'by_j';
+        return f.dimension == 'scalar' || f.dimension == 'by_j' || f.dimension == 'by_year';
     }
 
     refValue(name, refName){

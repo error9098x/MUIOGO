@@ -85,9 +85,8 @@ def test_switch_to_og(page, base_url):
     # page skeleton only: asserting catalog contents would depend on a live fetch
     expect(page.locator(".ogc-page")).to_be_visible()
     expect(page.locator("#Navi > li.nav-home")).to_be_visible()
-    # the OG workspace items are the only non-home menu shown in OG mode
-    expect(page.locator("#Navi > li:not(.nav-home):not(.nav-og):visible")).to_have_count(0)
-    expect(page.locator("#Navi > li.nav-og:visible")).to_have_count(2)
+    # country tools appear only after opening a country card, not as global nav
+    expect(page.locator("#Navi > li:not(.nav-home):visible")).to_have_count(0)
     expect(page.locator(".project-context")).to_be_hidden()
 
 
@@ -280,20 +279,190 @@ def test_polling_stops_when_leaving_og_page(page, base_url):
     page.wait_for_timeout(8_000)          # > 2x POLL_MS (3500)
     assert len(calls) == settled, f"polling outlived the page: {calls[settled:]}"
 def test_og_workspace_routes_assert_og_mode(page, base_url):
-    # the OG workspace pages set the shell mode themselves, like #/OGCore does
+    page.goto(base_url)
+    page.evaluate("""localStorage.setItem('osy-ogc-country', JSON.stringify({
+        country_id: 'ETH', country_name: 'Ethiopia'
+    }))""")
     page.goto(f"{base_url}/#/OGCases")
     expect(page.locator("body.osy-mode-og")).to_have_count(1)
+    expect(page.locator("body.osy-og-workspace")).to_have_count(1)
     expect(page.locator("#ogcCasesPage")).to_be_visible()
+    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(2)
+    expect(page.locator("#ogcCasesPage [data-act='run']")).to_have_count(0)
+    page.goto(f"{base_url}/#/OGRuns")
+    expect(page.locator("body.osy-mode-og.osy-og-workspace")).to_have_count(1)
+    expect(page.locator("#ogcRunsPage")).to_be_visible()
     page.goto(f"{base_url}/#/OGParameters")
     expect(page.locator("body.osy-mode-og")).to_have_count(1)
     expect(page.locator("#ogcParamsPage")).to_be_visible()
 
 
+def test_country_workspace_filters_cases(page, base_url):
+    page.goto(base_url)
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
+        const model = new Model([
+            { casename: 'ethiopia-case', country_id: 'ETH' },
+            { casename: 'south-africa-case', country_id: 'ZAF' }
+        ], {}, [{ country_id: 'ETH' }, { country_id: 'ZAF' }], 'ETH');
+        return model.cases.map(c => c.casename);
+    }""")
+    assert result == ['ethiopia-case']
+
+
+def test_ogc_adapter_matches_run_backend_contract(page, base_url):
+    page.goto(base_url)
+    result = page.evaluate("""async () => {
+        const { Ogc } = await import(new URL('Classes/Ogc.Class.js', location.href).href);
+        const calls = [];
+        Ogc._request = async (type, path, data) => {
+            calls.push({type, path, data});
+            if (path === 'ogc/getRuns') {
+                return {
+                    baseline: {RunName: 'base', RunType: 'baseline', status: 'completed'},
+                    reforms: [{RunName: 'reform', RunType: 'reform', baseline_run_name: 'base', status: 'pending'}]
+                };
+            }
+            if (path === 'ogc/getParams') return {debt_ratio_ss: [[0.4]]};
+            return {status_code: 'success'};
+        };
+        await Ogc.saveCase({casename: 'case-one', description: 'd', country_id: 'ETH'});
+        await Ogc.createRun({casename: 'case-one', run_name: 'reform', run_type: 'reform', baseline_run: 'base'});
+        await Ogc.cancelRun('case-one', 'reform');
+        const runs = await Ogc.getRuns('case-one');
+        const params = await Ogc.getParams('case-one', 'reform');
+        return {calls, runs, params};
+    }""")
+    assert result['calls'][0]['data'] == {
+        'data': {'ogc-casename': 'case-one', 'ogc-description': 'd', 'country_id': 'ETH'}
+    }
+    assert result['calls'][1]['data']['baseline_run_name'] == 'base'
+    assert result['calls'][2]['data'] == {'casename': 'case-one', 'run_name': 'reform'}
+    assert result['runs']['runs'][0]['run_name'] == 'base'
+    assert result['runs']['runs'][1]['baseline_run'] == 'base'
+    assert result['params']['params']['debt_ratio_ss'] == [[0.4]]
+
+
+def test_add_case_dialog_switches_between_baseline_and_reform(page, base_url):
+    page.goto(base_url)
+    page.evaluate("""localStorage.setItem('osy-ogc-country', JSON.stringify({
+        country_id: 'ETH', country_name: 'Ethiopia'
+    }))""")
+    page.goto(f"{base_url}/#/OGCases")
+    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    page.evaluate("""async () => {
+        const { default: Cases } = await import(new URL('App/Controller/OGCases.js', location.href).href);
+        const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
+        Cases.workspace = {country_id: 'ETH', country_name: 'Ethiopia'};
+        Cases.model = new Model(
+            [{casename: 'Baseline 1', country_id: 'ETH'}],
+            {'Baseline 1': [{run_name: 'baseline', run_type: 'baseline'}]},
+            [{country_id: 'ETH'}], 'ETH'
+        );
+        Cases.initEvents();
+        Cases.openNewCase();
+    }""")
+
+    expect(page.locator("#ogcCasesModalHead")).to_have_text("Add a case")
+    expect(page.locator("[data-act='case-type'][data-type='baseline']")).to_have_class("active")
+    expect(page.locator("#ogcCaseName")).to_have_value("Baseline 2")
+    expect(page.locator("#ogcCaseBaseWrap")).to_be_hidden()
+    expect(page.locator("[data-act='new-case-confirm']")).to_have_text("Create and edit")
+
+    page.locator("[data-act='case-type'][data-type='reform']").click()
+    expect(page.locator("#ogcCaseName")).to_have_value("New reform")
+    expect(page.locator("#ogcCaseBaseWrap")).to_be_visible()
+    expect(page.locator("#ogcCaseBaseline option")).to_have_text("Baseline 1")
+    expect(page.locator("#ogcCaseNote")).to_contain_text("inherits this baseline's values")
+
+
+def test_create_reform_opens_parameters_for_the_selected_baseline(page, base_url):
+    page.goto(base_url)
+    page.evaluate("""localStorage.setItem('osy-ogc-country', JSON.stringify({
+        country_id: 'ETH', country_name: 'Ethiopia'
+    }))""")
+    page.goto(f"{base_url}/#/OGCases")
+    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    page.evaluate("""async () => {
+        const { default: Cases } = await import(new URL('App/Controller/OGCases.js', location.href).href);
+        const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
+        const { Ogc } = await import(new URL('Classes/Ogc.Class.js', location.href).href);
+        Cases.workspace = {country_id: 'ETH', country_name: 'Ethiopia'};
+        Cases.model = new Model(
+            [{casename: 'Policy baseline', country_id: 'ETH'}],
+            {'Policy baseline': [{run_name: 'baseline', run_type: 'baseline'}]},
+            [{country_id: 'ETH'}], 'ETH'
+        );
+        window.__newCaseCalls = [];
+        Ogc.saveCase = async () => { throw new Error('A reform must not create a case container'); };
+        Ogc.createRun = async data => {
+            window.__newCaseCalls.push(data);
+            return {status_code: 'success'};
+        };
+        Cases.initEvents();
+        Cases.openNewCase('reform');
+    }""")
+    page.locator("#ogcCaseName").fill("Corporate tax cut")
+    page.locator("#ogcCaseDesc").fill("Reduce the corporate income tax rate")
+    page.locator("[data-act='new-case-confirm']").click()
+    page.wait_for_url("**/#/OGParameters")
+
+    result = page.evaluate("""({
+        calls: window.__newCaseCalls,
+        selection: JSON.parse(localStorage.getItem('osy-ogc-selection'))
+    })""")
+    assert result['calls'] == [{
+        'casename': 'Policy baseline',
+        'run_name': 'Corporate tax cut',
+        'run_type': 'reform',
+        'baseline_run': 'baseline',
+        'description': 'Reduce the corporate income tax rate',
+    }]
+    assert result['selection'] == {
+        'casename': 'Policy baseline',
+        'run_name': 'Corporate tax cut',
+        'run_type': 'reform',
+        'baseline_run': 'baseline',
+        'country_id': 'ETH',
+        'display_name': 'Corporate tax cut',
+        'baseline_display_name': 'Policy baseline',
+    }
+
+
+def test_run_queue_orders_dependencies_and_marks_cache(page, base_url):
+    page.goto(base_url)
+    result = page.evaluate("""async () => {
+        const { default: Runs } = await import(new URL('App/Controller/OGRuns.js', location.href).href);
+        const c = {casename: 'ethiopia-case'};
+        const base = {case: c, key: 'ethiopia-case:base', name: 'Base', run: {
+            run_name: 'base', run_type: 'baseline', status: 'pending'
+        }};
+        const reform = {case: c, key: 'ethiopia-case:reform', name: 'Reform', run: {
+            run_name: 'reform', run_type: 'reform', baseline_run: 'base', status: 'pending'
+        }};
+        const dependency = Runs.buildQueue([reform, base], {'ethiopia-case:reform': true}, false);
+        base.run.status = 'completed';
+        reform.run.status = 'completed';
+        const cached = Runs.buildQueue([reform, base], {
+            'ethiopia-case:reform': true, 'ethiopia-case:base': true
+        }, false);
+        base.stale = true;
+        const invalidated = Runs.buildQueue([reform, base], {'ethiopia-case:reform': true}, false);
+        return {
+            dependency: dependency.map(j => [j.entry.run.run_name, j.state, !!j.note]),
+            cached: cached.map(j => [j.entry.run.run_name, j.state]),
+            invalidated: invalidated.map(j => [j.entry.run.run_name, j.state])
+        };
+    }""")
+    assert result['dependency'] == [['base', 'queued', True], ['reform', 'queued', False]]
+    assert result['cached'] == [['base', 'cached'], ['reform', 'cached']]
+    assert result['invalidated'] == [['base', 'queued'], ['reform', 'queued']]
+
+
 def test_runs_are_read_from_the_grouped_shape(page, base_url):
     """getRuns answers {baseline: [...], reform: [...]}, not a flat list. Reading
     it as a list finds no runs and every case renders as empty."""
-    page.goto(f"{base_url}/#/OGCases")
-    expect(page.locator("#ogcCasesPage")).to_be_visible()
+    page.goto(base_url)
     result = page.evaluate("""async () => {
         const { Model } = await import(new URL('App/Model/OGCases.Model.js', location.href).href);
         const grouped = {
@@ -369,6 +538,72 @@ def test_parameters_page_without_a_selection_is_empty(page, base_url):
     expect(page.locator("#ogcParamsEmpty")).to_be_visible()
     expect(page.locator("#ogcParamsEmptyTitle")).to_have_text("No run selected")
     expect(page.locator("#ogcParamsEditbar")).to_be_hidden()
+
+
+def test_parameter_metadata_stays_compact(page, base_url):
+    page.goto(base_url)
+    result = page.evaluate("""async () => {
+        const { default: Parameters } = await import(
+            new URL('App/Controller/OGParameters.js', location.href).href
+        );
+        const description = 'Parameter summarizing the quadratic effect of debt.';
+        const bounded = {
+            name: 'bounded', title: 'Bounded parameter', description,
+            help: '', hasRange: true, min: 0, max: 1, readOnly: false
+        };
+        const broad = {
+            name: 'broad', title: 'Broad parameter', description,
+            help: '', hasRange: true, min: -99000000000, max: 99000000000,
+            readOnly: false
+        };
+        return {
+            label: Parameters.labelHtml(bounded),
+            boundedHint: Parameters.hintHtml(bounded),
+            broadHint: Parameters.hintHtml(broad),
+            boundedSlider: Parameters.hasUsefulRange(bounded),
+            broadSlider: Parameters.hasUsefulRange(broad)
+        };
+    }""")
+    assert result['label'].find(result_description := 'Parameter summarizing the quadratic effect of debt.') >= 0
+    assert result_description not in result['boundedHint']
+    assert 'default' not in result['boundedHint']
+    assert 'range [0, 1]' in result['boundedHint']
+    assert result['broadHint'] == ''
+    assert result['boundedSlider'] is True
+    assert result['broadSlider'] is False
+
+
+def test_time_paths_are_editable(page, base_url):
+    page.goto(base_url)
+    result = page.evaluate("""async () => {
+        const { Model } = await import(new URL('App/Model/OGParameters.Model.js', location.href).href);
+        const { default: Parameters } = await import(
+            new URL('App/Controller/OGParameters.js', location.href).href
+        );
+        const model = new Model(
+            {
+                start_year: {title: 'Start year', type: 'year', shape: 'scalar', default: 2025, min: 2013, max: 2101},
+                tau_payroll: {title: 'Payroll tax', description: 'API description', type: 'rate', shape: 'time', default: [0.18], min: 0, max: 0.99}
+            },
+            {},
+            {casename: 'c1', run_name: 'reform', run_type: 'reform', baseline_run: 'base'},
+            {}
+        );
+        const html = Parameters.fieldHtml(model, 'tau_payroll');
+        model.cur.tau_payroll = [0.18, 0.2];
+        return {
+            editable: model.editable('tau_payroll'),
+            html,
+            payload: model.savePayload(),
+            field: model.fields.tau_payroll
+        };
+    }""")
+    assert result['editable'] is True
+    assert 'data-role="path-cell"' in result['html']
+    assert '2025' in result['html']
+    assert 'API description' in result['html']
+    assert 'readOnlyNote' not in result['field']
+    assert result['payload'] == {'tau_payroll': [0.18, 0.2]}
 
 
 def test_overlay_keeps_schema_facts_and_adds_decisions(page, base_url):
@@ -464,11 +699,11 @@ def test_reform_reads_against_its_baseline_not_the_default(page, base_url):
     assert result['reform_ref_def'] == 0.21
     assert result['reform_cur'] == 0.15
     assert result['reform_changed_vs_own'] is True
-    # saved values go back in the broadcast shape OG-Core expects
-    assert result['reform_payload'] == {'cit_rate': [[0.15]]}
+    # editable scalars are saved in the schema's native scalar shape
+    assert result['reform_payload'] == {'cit_rate': 0.15}
     # a baseline is measured against the calibration default
     assert result['baseline_ref_auto'] == 0.21
-    assert result['baseline_payload'] == {'cit_rate': [[0.25]]}
+    assert result['baseline_payload'] == {'cit_rate': 0.25}
 
 
 def test_preview_reference_does_not_change_what_is_saved(page, base_url):
