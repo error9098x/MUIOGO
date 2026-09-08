@@ -212,8 +212,12 @@ export class Model {
     }
 
     savePayload(){
-        let payload = {};
+        let payload = Model.clone(this.params);
         let self = this;
+        // Saves replace the file; preserve fields the editor cannot manage.
+        $.each(this.fields, function (name) {
+            if (self.editable(name)) delete payload[name];
+        });
         $.each(this.changedNames(), function (id, name) {
             payload[name] = self.wrap(name, self.cur[name]);
         });

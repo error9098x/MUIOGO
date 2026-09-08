@@ -80,11 +80,22 @@ body.osy-mode-og.osy-og-workspace #Navi > li.nav-og-workspace{display:block!impo
         bottom:0;
         height:auto!important;
         overflow:hidden;
+        display:flex;
+        flex-direction:column;
     }
     body.fixed-header:not(.menu-on-top) #left-panel nav{
-        height:100%;
+        min-height:0;
         overflow-y:auto;
         overflow-x:hidden;
+    }
+    body.fixed-header:not(.menu-on-top) #left-panel .minifyme{
+        position:relative;
+        flex-shrink:0;
+        align-self:flex-end;
+    }
+    body.fixed-header.minified:not(.menu-on-top) #left-panel,
+    body.fixed-header.minified:not(.menu-on-top) #left-panel nav{
+        overflow:visible;
     }
 }
 

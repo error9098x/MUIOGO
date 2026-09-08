@@ -100,7 +100,7 @@ def test_sidebar_active_item_tracks_og_workspace_route(page, base_url):
     page.evaluate("""localStorage.setItem('osy-model', 'og');
         localStorage.setItem('osy-ogc-country', JSON.stringify({country_id:'ETH', country_name:'Ethiopia'}));""")
     page.goto(f"{base_url}/#/OGCases")
-    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(3)
+    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(4)
     expect(page.locator('#Navi > li.nav-og-workspace').filter(
         has=page.locator('a[href="#/OGCases"]'))).to_have_class(re.compile(r'(^|\s)active(\s|$)'))
     expect(page.locator('#Navi > li.nav-home')).not_to_have_class(re.compile(r'(^|\s)active(\s|$)'))
@@ -110,6 +110,7 @@ def test_sidebar_active_item_tracks_og_workspace_route(page, base_url):
 def test_desktop_sidebar_stays_fixed_while_content_scrolls(page, base_url):
     page.goto(base_url)
     result = page.evaluate("""() => {
+        document.body.classList.remove('minified');
         const sidebar = document.querySelector('#left-panel');
         const nav = sidebar && sidebar.querySelector('nav');
         document.body.style.minHeight = '200vh';
@@ -136,7 +137,7 @@ def test_switch_to_clews(page, base_url):
     page.locator("#osy-mb-clews").click()
     expect(page.locator("body.osy-mode-clews")).to_have_count(1)
     expect(page.locator(".project-context")).to_be_visible()
-    expect(page.locator("#Navi > li.nav-og-workspace")).to_have_count(3)
+    expect(page.locator("#Navi > li.nav-og-workspace")).to_have_count(4)
     expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(0)
 
 
@@ -281,7 +282,7 @@ def test_results_default_view_is_country_scoped_and_dimensions_are_explicit(page
     }
 
 
-def test_results_parameter_changes_show_names_for_all_value_types(page, base_url):
+def test_results_parameter_changes_show_values_for_scalars_and_names_for_complex_values(page, base_url):
     page.goto(base_url, wait_until="domcontentloaded")
     result = page.evaluate("""async () => {
         const markup = await fetch('App/View/OGResults.html').then(response => response.text());
@@ -341,7 +342,7 @@ def test_results_parameter_changes_show_names_for_all_value_types(page, base_url
             items,
             hasValues: document.querySelectorAll('.ogc-policy-values').length,
             hasUnsafeMarkup: document.querySelectorAll('#ogcPolicyChange img, #ogcPolicyChange script').length,
-            text: document.querySelector('#ogcPolicyChange').textContent,
+            values: [...document.querySelectorAll('.ogc-policy-item > span')].map(item => item.textContent),
             hiddenExtra: document.querySelector('.ogc-policy-extra').hidden,
             more: document.querySelector('.ogc-policy-toggle').textContent,
         };
@@ -362,13 +363,11 @@ def test_results_parameter_changes_show_names_for_all_value_types(page, base_url
         ],
         "hasValues": 0,
         "hasUnsafeMarkup": 0,
-        "text": (
-            "9 parameters changedBaseline-only parameterbaseline_onlyBoolean parameter"
-            "boolean_changeFallback Titlefallback_titleFlat array parameterflat_array_change"
-            "Show 5 moreNested array parameternested_array_changeNull parameternull_change"
-            "Number parameternumber_changeReform-only parameterreform_onlyString parameter"
-            "string_change"
-        ),
+        "values": [
+            "Baseline: 5 → Reform: 0", "Baseline: false → Reform: true",
+            "Baseline: 0 → Reform: 1", "Baseline: 1 → Reform: 2",
+            "Baseline: 0 → Reform: 6", "Baseline: old → Reform: new",
+        ],
         "hiddenExtra": True,
         "more": "Show 5 more",
     }
@@ -416,6 +415,119 @@ def test_results_matrix_headers_and_missing_data_guard(page, base_url):
         ],
         "heatContract": {"hasOption": True, "hasScale": True, "unknownOptionKey": False},
         "missing": "Comparable baseline and reform matrix data are unavailable.",
+    }
+
+
+def test_results_legends_cover_chart_and_measure_combinations(page, base_url):
+    page.goto(base_url, wait_until="domcontentloaded")
+    result = page.evaluate("""async () => {
+        const { default: Results } = await import(
+            new URL('App/Controller/OGResults.js', location.href).href
+        );
+        Results.groups = ['Bottom 50%', 'Top 50%'];
+        Results.ages = [31, 32];
+        Results.base = {
+            Y: 100, C: 100, I: 100, K: 100, L: 100, w: 100,
+            total_tax_revenue: 100, business_tax_revenue: 100,
+            iit_revenue: 100, cons_tax_revenue: 100, G: 100,
+            total_primary_government_outlays: 100,
+            r: 0.05, group_metric: [2, 3], c: [[1, 2], [3, 4]],
+        };
+        Results.reform = {
+            Y: 110, C: 90, I: 120, K: 80, L: 105, w: 95,
+            total_tax_revenue: 110, business_tax_revenue: 90,
+            iit_revenue: 105, cons_tax_revenue: 95, G: 120,
+            total_primary_government_outlays: 80,
+            r: 0.06, group_metric: [1, 5], c: [[2, 1], [4, 3]],
+        };
+
+        const rendered = {};
+        const setChart = Results.setChart;
+        Results.setChart = (id, option) => { rendered[id] = option; };
+        Results.renderMacro();
+        Results.renderFiscal();
+        Results.setChart = setChart;
+
+        const scalarLevels = Results.comparisonOption('Y', 'levels');
+        const scalarPercent = Results.comparisonOption('Y', 'pct');
+        const groupDifference = Results.comparisonOption('group_metric', 'diff');
+        const rateDifference = Results.comparisonOption('r', 'pp');
+        const profileLevels = Results.profileOption('c', 0, 'levels');
+        const profilePercent = Results.profileOption('c', 0, 'pct');
+        const heat = Results.heatOption('c', 'pct');
+        const countValues = option => option.series.map(series =>
+            series.data.filter(value => value !== null).length
+        );
+
+        return {
+            macro: {
+                legend: rendered.ogcMacroChart.legend.data,
+                series: rendered.ogcMacroChart.series.map(series => series.name),
+                counts: countValues(rendered.ogcMacroChart),
+            },
+            fiscal: {
+                legend: rendered.ogcFiscalChart.legend.data,
+                counts: countValues(rendered.ogcFiscalChart),
+            },
+            scalarLevels: {
+                legend: scalarLevels.legend.data,
+                series: scalarLevels.series.map(series => series.name),
+            },
+            scalarPercent: {
+                legend: scalarPercent.legend.data,
+                series: scalarPercent.series.map(series => series.name),
+                counts: countValues(scalarPercent),
+            },
+            groupDifference: {
+                legend: groupDifference.legend.data,
+                counts: countValues(groupDifference),
+            },
+            rateDifference: rateDifference.legend.data,
+            profileLevels: {
+                legend: profileLevels.legend.data,
+                series: profileLevels.series.map(series => series.name),
+            },
+            profilePercent: {
+                legend: profilePercent.legend.data,
+                series: profilePercent.series.map(series => series.name),
+            },
+            heat: heat.option.visualMap.text,
+        };
+    }""")
+
+    assert result == {
+        "macro": {
+            "legend": ["Increase", "Decrease"],
+            "series": ["Increase", "Decrease"],
+            "counts": [3, 3],
+        },
+        "fiscal": {
+            "legend": ["Increase", "Decrease"],
+            "counts": [3, 3],
+        },
+        "scalarLevels": {
+            "legend": ["Baseline", "Reform"],
+            "series": ["Baseline", "Reform"],
+        },
+        "scalarPercent": {
+            "legend": ["Increase", "Decrease"],
+            "series": ["Increase", "Decrease"],
+            "counts": [1, 0],
+        },
+        "groupDifference": {
+            "legend": ["Increase", "Decrease"],
+            "counts": [1, 1],
+        },
+        "rateDifference": ["Increase", "Decrease"],
+        "profileLevels": {
+            "legend": ["Baseline", "Reform"],
+            "series": ["Baseline", "Reform"],
+        },
+        "profilePercent": {
+            "legend": ["Reform vs baseline"],
+            "series": ["Reform vs baseline"],
+        },
+        "heat": ["Higher than baseline", "Lower than baseline"],
     }
 
 
@@ -729,7 +841,7 @@ def test_og_workspace_routes_assert_og_mode(page, base_url):
     expect(page.locator("body.osy-mode-og")).to_have_count(1)
     expect(page.locator("body.osy-og-workspace")).to_have_count(1)
     expect(page.locator("#ogcCasesPage")).to_be_visible()
-    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(3)
+    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(4)
     expect(page.locator("#ogcCasesPage [data-act='run']")).to_have_count(0)
     page.goto(f"{base_url}/#/OGRuns")
     expect(page.locator("body.osy-mode-og.osy-og-workspace")).to_have_count(1)
@@ -1097,19 +1209,21 @@ def test_workspace_exit_is_serialized_and_back_cannot_reenter(page, base_url):
         window.__serializedSessionCalls = [];
         Ogc.setSession = async value => { window.__serializedSessionCalls.push(value); };
     }""")
-    page.locator("[href='#/OGCore']").click()
+    page.locator("#Navi .nav-home > a").click()
     expect(page.locator("#ogWorkspaceConfirm")).to_be_visible()
-    page.evaluate("window.location.hash = '#/'")
+    page.evaluate("window.location.hash = '#/OGCore'")
     page.locator('[data-og-confirm="leave"]').click()
-    expect(page).to_have_url(f"{base_url}/#/OGCore")
+    expect(page).to_have_url(f"{base_url}/#/")
     assert page.evaluate("window.__serializedSessionCalls") == [None]
 
     page.go_back()
     expect(page).to_have_url(f"{base_url}/#/OGCore")
     expect(page.locator("body.osy-og-workspace")).to_have_count(0)
     page.go_back()
-    expect(page).to_have_url(f"{base_url}/#/")
+    expect(page).to_have_url(f"{base_url}/#/OGCore")
     expect(page.locator("body.osy-og-workspace")).to_have_count(0)
+    assert page.evaluate("localStorage.getItem('osy-ogc-country')") is None
+    assert page.evaluate("window.__serializedSessionCalls") == [None]
 
 
 def test_add_case_dialog_switches_between_baseline_and_reform(page, base_url):
@@ -1375,6 +1489,7 @@ def test_run_queue_orders_dependencies_and_marks_cache(page, base_url):
         );
         base.run.status = 'completed';
         reform.run.status = 'completed';
+        base.run.time_path = reform.run.time_path = false;
         const cached = Runs.buildQueue([reform, base], {
             'ETH:ethiopia-case:reform': true, 'ETH:ethiopia-case:base': true
         }, false);
@@ -1776,7 +1891,7 @@ def test_cached_status_error_always_reenables_run_controls(page, base_url):
         }));
         Ogc.getCases = async () => [{casename: 'case-one', country_id: 'ETH'}];
         Ogc.getRuns = async () => ({runs: [{
-            run_name: 'baseline', run_type: 'baseline', status: 'completed',
+            run_name: 'baseline', run_type: 'baseline', status: 'completed', time_path: false,
             completed_at: '2026-08-13T10:00:00Z'
         }]});
         Ogc.getRunQueue = async () => ({active: null, queued: []});

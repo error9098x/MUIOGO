@@ -4,7 +4,7 @@ import { OGWorkspace } from "../../Classes/OGWorkspace.Class.js";
 import { escapeHtml as esc } from "../../Classes/Html.Class.js";
 import { Model } from "../Model/OGCases.Model.js";
 
-const FLAG_ISO2 = { ETH: 'et', ZAF: 'za', IDN: 'id', PHL: 'ph', USA: 'us', UK: 'gb', THA: 'th', BRA: 'br' };
+export const FLAG_ISO2 = { ETH: 'et', ZAF: 'za', IDN: 'id', PHL: 'ph', USA: 'us', UK: 'gb', THA: 'th', BRA: 'br' };
 
 //async work from an older page visit must not repaint the new page
 let PAGE_ID = 0;
@@ -219,7 +219,7 @@ export default class OGCases {
         return `<tr class="ogc-case-row ogc-reference-row" data-act="expand" data-key="default">
             <td><i class="fa fa-caret-right ogc-caret"></i> <b>Calibration defaults</b> <span class="ogc-tag ogc-tag-mut"><i class="fa fa-bookmark-o"></i> reference only</span></td>
             <td class="ogc-mut">&mdash;</td><td class="ogc-mut">&mdash;</td>
-            <td class="ogc-actcell"><button class="btn ogc-btn ogc-btn-sm" data-act="new-case" title="Create a runnable baseline from these calibration values"${installed ? '' : ' disabled'}><i class="fa fa-plus"></i> Create baseline</button></td></tr>
+            <td class="ogc-actcell"><button class="btn ogc-btn ogc-btn-sm ogc-btn-main" data-act="new-case" title="Create a runnable baseline from these calibration values"${installed ? '' : ' disabled'}><i class="fa fa-plus"></i> Create baseline</button></td></tr>
             <tr class="ogc-detail-row" data-detail="default" style="display:none"><td colspan="4"><div class="ogc-case-detail">
                 <div><label>Type</label>Calibration reference (not runnable)</div><div><label>Country</label>${esc(OGCases.workspace.country_name)}</div>
                 <div><label>Calibration</label>${esc(OGCases.workspace.country_id)}</div><div><label>Purpose</label>Starting values for creating a user baseline</div>
@@ -252,9 +252,9 @@ export default class OGCases {
             <td><i class="fa fa-caret-right ogc-caret"></i> <b>${esc(name)}</b></td>
             <td><span class="ogc-tag ogc-tag-${type == 'reform' ? 'reform' : 'base'}">${type}</span></td>
             <td class="ogc-mut">${esc(from)}</td>
-            <td class="ogc-actcell"><button class="btn ogc-btn ogc-btn-sm" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> Run</button>
-            <button class="btn ogc-btn ogc-btn-sm" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> Edit</button>
-            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-ico" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
+            <td class="ogc-actcell"><button class="btn ogc-btn ogc-btn-sm ogc-btn-main" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> Run</button>
+            <button class="btn ogc-btn ogc-btn-sm ogc-btn-main" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> Edit</button>
+            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-ico ogc-btn-main" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
             <span class="ogc-case-menu" role="menu" aria-hidden="true">${menuAddReform}
                 <button type="button" role="menuitem" class="ogc-menu-danger" data-act="del-run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}"><i class="fa fa-trash"></i> ${type == 'baseline' ? 'Delete case' : 'Delete reform'}</button>
             </span></span></td></tr>

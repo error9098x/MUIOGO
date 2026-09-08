@@ -298,31 +298,43 @@ function chartBase(description){
 
 function comparisonBar(labels, values, description){
     let max = Math.max(0.5, ...values.filter(v => v !== null).map(v => Math.abs(v))) * 1.18;
+    let item = value => {
+        let placeInside = value < 0 && Math.abs(value) / max > 0.18;
+        return {
+            value: value,
+            label: {
+                position: value >= 0 ? 'right' : (placeInside ? 'insideLeft' : 'left'),
+                color: placeInside ? '#fff' : SLATE,
+                distance: 7
+            }
+        };
+    };
+    let common = {
+        type: 'bar',
+        barMaxWidth: 17,
+        label: { show: true, color: SLATE, fontWeight: 700, formatter: p => signed(p.value, '%') }
+    };
     return $.extend(true, chartBase(description), {
-        grid: { left: 40, right: 52, top: 10, bottom: 26, containLabel: true },
+        legend: { data: ['Increase', 'Decrease'], top: 0, right: 10, icon: 'roundRect', itemWidth: 14, itemHeight: 8, textStyle: { color: MUTED } },
+        grid: { left: 40, right: 52, top: 36, bottom: 26, containLabel: true },
+        tooltip: { valueFormatter: value => signed(value, '%') },
         xAxis: {
             type: 'value', min: -max, max: max,
             axisLine: { lineStyle: { color: '#ccd0d8' } }, axisTick: { show: false },
             splitLine: { lineStyle: { color: GRID } }, axisLabel: { color: MUTED, formatter: v => axisLabel(v) + '%' }
         },
         yAxis: { type: 'category', data: labels, inverse: true, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: SLATE, fontWeight: 600 } },
-        series: [{
-            type: 'bar', data: values.map(v => {
-                let placeInside = v < 0 && Math.abs(v) / max > 0.18;
-                return {
-                    value: v,
-                    itemStyle: { color: v >= 0 ? ORANGE : BLUE },
-                    label: {
-                        position: v >= 0 ? 'right' : (placeInside ? 'insideLeft' : 'left'),
-                        color: placeInside ? '#fff' : SLATE,
-                        distance: 7
-                    }
-                };
+        series: [
+            $.extend(true, {}, common, {
+                name: 'Increase', data: values.map(value => value !== null && value >= 0 ? item(value) : null),
+                itemStyle: { color: ORANGE },
+                markLine: { silent: true, symbol: 'none', lineStyle: { color: '#9ba1ad', width: 1.2 }, label: { show: false }, data: [{ xAxis: 0 }] }
             }),
-            barMaxWidth: 17,
-            label: { show: true, position: 'outside', color: SLATE, fontWeight: 700, formatter: p => signed(p.value, '%') },
-            markLine: { silent: true, symbol: 'none', lineStyle: { color: '#9ba1ad', width: 1.2 }, label: { show: false }, data: [{ xAxis: 0 }] }
-        }]
+            $.extend(true, {}, common, {
+                name: 'Decrease', data: values.map(value => value !== null && value < 0 ? item(value) : null),
+                itemStyle: { color: BLUE }, barGap: '-100%'
+            })
+        ]
     });
 }
 
@@ -357,7 +369,8 @@ export default class OGResults {
 
     static loadECharts(){
         if (window.echarts) return Promise.resolve(window.echarts);
-        return new Promise((resolve, reject) => {
+        if (OGResults.echartsPromise) return OGResults.echartsPromise;
+        OGResults.echartsPromise = new Promise((resolve, reject) => {
             let script = document.getElementById('ogc-echarts-runtime');
             if (script) script.remove();
             script = document.createElement('script');
@@ -367,10 +380,12 @@ export default class OGResults {
             script.addEventListener('load', () => resolve(window.echarts), {once: true});
             script.addEventListener('error', () => {
                 script.remove();
+                OGResults.echartsPromise = null;
                 reject('Charts could not be loaded.');
             }, {once: true});
             document.head.appendChild(script);
         });
+        return OGResults.echartsPromise;
     }
 
     static prepareCases(response){
@@ -403,7 +418,11 @@ export default class OGResults {
                     return;
                 }
                 $('#ogcResultCase').html($.map(viable, item => `<option value="${esc(item.case.casename)}">${esc(item.case.casename)}</option>`).join(''));
-                OGResults.renderReformOptions(null);
+                let saved = OGResults.readSaved();
+                if (saved && saved.country_id == OGResults.workspace.country_id && viable.some(item => item.case.casename == saved.casename)){
+                    $('#ogcResultCase').val(saved.casename);
+                }
+                OGResults.renderReformOptions(saved);
             });
     }
 
@@ -430,6 +449,7 @@ export default class OGResults {
         let item = OGResults.currentItem();
         let baseline = OGResults.currentBaseline(item);
         let baseName = baseline && baseline.run_name;
+        $('#ogcResultBaselineName').text(baseName ? `Baseline: ${baseName}` : '');
         let reforms = item ? OGResults.compatibleReforms(item, baseName) : [];
         $('#ogcResultReform').html($.map(reforms, run => `<option value="${esc(run.run_name)}">${esc(run.run_name)}</option>`).join(''));
         if (saved && saved.country_id == OGResults.workspace.country_id && saved.casename == (item && item.case.casename) && saved.base == baseName && $.grep(reforms, run => run.run_name == saved.reform).length){
@@ -596,7 +616,7 @@ export default class OGResults {
             let reformValue = name in OGResults.reformParams ? OGResults.reformParams[name] : defaultValue;
             if (!parameterEqual(baseValue, reformValue)){
                 let title = String(schema.title || '').trim();
-                changes.push({ name: name, label: title || humanize(name) });
+                changes.push({ name: name, label: title || humanize(name), base: baseValue, reform: reformValue });
             }
         });
         changes.sort((left, right) => left.label.localeCompare(right.label));
@@ -604,7 +624,12 @@ export default class OGResults {
             $('#ogcPolicyChange').html('<span class="ogc-mut">No parameter changes.</span>');
             return;
         }
-        let itemHtml = item => `<div class="ogc-policy-item"><b>${esc(item.label)}</b><code>${esc(item.name)}</code></div>`;
+        let itemHtml = item => {
+            let scalar = value => value !== null && value !== undefined && typeof value != 'object';
+            let values = scalar(item.base) && scalar(item.reform)
+                ? `<span>Baseline: ${esc(String(item.base))} → Reform: ${esc(String(item.reform))}</span>` : '';
+            return `<div class="ogc-policy-item"><b>${esc(item.label)}</b><code>${esc(item.name)}</code>${values}</div>`;
+        };
         let primary = $.map(changes.slice(0, 4), itemHtml).join('');
         let remaining = changes.slice(4);
         let extra = remaining.length
@@ -698,14 +723,19 @@ export default class OGResults {
             },
             xAxis: { type: 'category', data: OGResults.ages, name: 'Age', nameLocation: 'middle', nameGap: 28, axisTick: { show: false }, axisLine: { lineStyle: { color: '#ccd0d8' } }, axisLabel: { color: MUTED, interval: 9 } },
             yAxis: { type: 'category', data: OGResults.groups, axisTick: { show: false }, axisLine: { show: false }, axisLabel: { color: SLATE } },
-            visualMap: { min: -bound, max: bound, calculable: false, orient: 'horizontal', left: 'center', bottom: 3, precision: 2, text: ['Increase', 'Decrease'], textStyle: { color: MUTED }, inRange: { color: ['#39769f', '#d9e4ea', '#f7f7f5', '#f9d8b8', '#d9680b'] } },
+            visualMap: { min: -bound, max: bound, calculable: false, orient: 'horizontal', left: 'center', bottom: 3, precision: 2, text: ['Higher than baseline', 'Lower than baseline'], textStyle: { color: MUTED }, inRange: { color: ['#39769f', '#d9e4ea', '#f7f7f5', '#f9d8b8', '#d9680b'] } },
             series: [{ type: 'heatmap', data: values, progressive: 1000, emphasis: { itemStyle: { borderColor: SLATE, borderWidth: 1 } }, itemStyle: { borderColor: '#fff', borderWidth: 0.35 } }]
         });
         return { option: option, scale: scale };
     }
 
+    static availableProfiles(names){
+        return names.filter(name => shape(OGResults.base[name]).kind == 'age_group' &&
+            compatibleMatrices(ageGroupMatrix(OGResults.base[name]), ageGroupMatrix(OGResults.reform[name])));
+    }
+
     static renderDistributionControls(){
-        let available = $.grep(DISTRIBUTION_VARS, name => shape(OGResults.base[name]).kind == 'age_group' && name in OGResults.reform);
+        let available = OGResults.availableProfiles(DISTRIBUTION_VARS);
         $('#ogcDistributionVariable').html($.map(available, name => `<option value="${esc(name)}">${esc(info(name).short || info(name).label)}</option>`).join(''));
         $('#ogcDistributionVariable').val($.grep(available, name => name == 'c').length ? 'c' : available[0]);
     }
@@ -735,7 +765,9 @@ export default class OGResults {
     }
 
     static renderProfileControls(){
-        $('#ogcProfileVariable').html($.map(PROFILE_VARS, name => `<option value="${esc(name)}">${esc(info(name).short || info(name).label)}</option>`).join(''));
+        let available = OGResults.availableProfiles(PROFILE_VARS);
+        $('#ogcProfileVariable').prop('disabled', !available.length).html($.map(available, name => `<option value="${esc(name)}">${esc(info(name).short || info(name).label)}</option>`).join(''));
+        $('#ogcProfileVariable').val(available.includes('c') ? 'c' : available[0]);
         $('#ogcProfileGroup, #ogcExploreGroup').html($.map(OGResults.groups, (label, index) => `<option value="${index}">${esc(label)}</option>`).join(''));
         $('#ogcProfileGroup').val(Math.min(3, OGResults.groups.length - 1));
     }
@@ -743,24 +775,25 @@ export default class OGResults {
     static profileOption(name, group, measure){
         let base = ageGroupMatrix(OGResults.base[name]) || [];
         let reform = ageGroupMatrix(OGResults.reform[name]) || [];
-        let baseValues = $.map(base, row => row[group]);
-        let reformValues = $.map(reform, row => row[group]);
+        let baseValues = base.map(row => row[group]);
+        let reformValues = reform.map(row => row[group]);
         let series = [];
         if (measure == 'levels'){
-            baseValues = $.map(baseValues, value => level(name, value));
-            reformValues = $.map(reformValues, value => level(name, value));
+            baseValues = baseValues.map(value => level(name, value));
+            reformValues = reformValues.map(value => level(name, value));
             series = [
-                { name: 'Baseline', type: 'line', data: baseValues, showSymbol: false, lineStyle: { width: 2.5, color: SLATE }, itemStyle: { color: SLATE } },
-                { name: 'Reform', type: 'line', data: reformValues, showSymbol: false, lineStyle: { width: 2.5, color: ORANGE }, itemStyle: { color: ORANGE } }
+                { name: 'Baseline', type: 'line', connectNulls: false, data: baseValues, showSymbol: false, lineStyle: { width: 2.5, color: SLATE }, itemStyle: { color: SLATE } },
+                { name: 'Reform', type: 'line', connectNulls: false, data: reformValues, showSymbol: false, lineStyle: { width: 2.5, color: ORANGE }, itemStyle: { color: ORANGE } }
             ];
         }else{
             let data = baseValues.map((value, i) => measureValue(name, value, reformValues[i], measure));
-            series = [{ name: measureLabel(name, measure), type: 'line', data: data, showSymbol: false, lineStyle: { width: 2.5, color: ORANGE }, areaStyle: { color: 'rgba(245,130,32,.08)' }, itemStyle: { color: ORANGE }, markLine: { silent: true, symbol: 'none', data: [{ yAxis: 0 }], label: { show: false }, lineStyle: { color: '#9ba1ad' } } }];
+            series = [{ name: 'Reform vs baseline', type: 'line', connectNulls: false, data: data, showSymbol: false, lineStyle: { width: 2.5, color: ORANGE }, areaStyle: { color: 'rgba(245,130,32,.08)' }, itemStyle: { color: ORANGE }, markLine: { silent: true, symbol: 'none', data: [{ yAxis: 0 }], label: { show: false }, lineStyle: { color: '#9ba1ad' } } }];
         }
+        let legendItems = measure == 'levels' ? ['Baseline', 'Reform'] : ['Reform vs baseline'];
         return $.extend(true, chartBase(`${info(name).label} by age for ${OGResults.groups[group] || 'the selected income group'}.`), {
             color: [SLATE, ORANGE],
-            legend: { show: measure == 'levels', top: 0, right: 10, icon: 'roundRect', textStyle: { color: MUTED } },
-            grid: { left: 28, right: 28, top: measure == 'levels' ? 40 : 18, bottom: 40, containLabel: true },
+            legend: { data: legendItems, top: 0, right: 10, icon: measure == 'levels' ? 'roundRect' : 'line', itemWidth: 16, itemHeight: 8, textStyle: { color: MUTED } },
+            grid: { left: 28, right: 28, top: 40, bottom: 40, containLabel: true },
             tooltip: { trigger: 'axis', valueFormatter: v => fmt(v) + measureSuffix(name, measure) },
             xAxis: { type: 'category', data: OGResults.ages, name: 'Age', nameLocation: 'middle', nameGap: 28, boundaryGap: false, axisTick: { show: false }, axisLine: { lineStyle: { color: '#ccd0d8' } }, axisLabel: { color: MUTED, interval: 9 } },
             yAxis: { type: 'value', name: measureLabel(name, measure), nameTextStyle: { color: MUTED }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: GRID } }, axisLabel: { color: MUTED, formatter: value => axisLabel(value) + measureSuffix(name, measure) } },
@@ -769,7 +802,15 @@ export default class OGResults {
     }
 
     static renderProfile(){
-        let name = $('#ogcProfileVariable').val() || 'c';
+        let name = $('#ogcProfileVariable').val();
+        $('[data-export-chart="ogcProfileChart"]').prop('disabled', !name);
+        if (!name){
+            let chart = OGResults.charts.ogcProfileChart;
+            if (chart && !chart.isDisposed()) chart.dispose();
+            $('#ogcProfileChart').html('<div class="ogc-table-status">Comparable lifecycle profiles are unavailable.</div>');
+            return;
+        }
+        $('#ogcProfileChart .ogc-table-status').remove();
         let group = Number($('#ogcProfileGroup').val() || 0);
         let measure = $('#ogcProfileMeasure').val() || 'levels';
         OGResults.setChart('ogcProfileChart', OGResults.profileOption(name, group, measure));
@@ -885,25 +926,37 @@ export default class OGResults {
         }else{
             let b = rank(base) > 1 ? (ageGroupMatrix(base) || []).map(firstNumber) : base;
             let r = rank(reform) > 1 ? (ageGroupMatrix(reform) || []).map(firstNumber) : reform;
-            baseValues = $.map(b || [], firstNumber); reformValues = $.map(r || [], firstNumber);
+            baseValues = (b || []).map(firstNumber); reformValues = (r || []).map(firstNumber);
             labels = spec.kind == 'group' ? OGResults.groups.slice(0, baseValues.length) : $.map(baseValues, (_, i) => String(i + 1));
         }
         let series;
         if (measure == 'levels'){
-            baseValues = $.map(baseValues, value => level(name, value));
-            reformValues = $.map(reformValues, value => level(name, value));
+            baseValues = baseValues.map(value => level(name, value));
+            reformValues = reformValues.map(value => level(name, value));
             series = [
                 { name: 'Baseline', type: 'bar', data: baseValues, itemStyle: { color: SLATE }, barMaxWidth: 28 },
                 { name: 'Reform', type: 'bar', data: reformValues, itemStyle: { color: ORANGE }, barMaxWidth: 28 }
             ];
         }else{
             let values = baseValues.map((value, i) => measureValue(name, value, reformValues[i], measure));
-            series = [{ name: measureLabel(name, measure), type: 'bar', data: values.map(v => ({value:v, itemStyle:{color:v >= 0 ? ORANGE : BLUE}})), barMaxWidth: 28, label: { show: values.length <= 12, position: 'top', color: SLATE, formatter: p => signed(p.value, measureSuffix(name, measure)) }, markLine: { silent: true, symbol: 'none', data: [{yAxis:0}], lineStyle:{color:'#9ba1ad'}, label:{show:false} } }];
+            let common = { type: 'bar', barMaxWidth: 28, label: { show: values.length <= 12, color: SLATE, formatter: p => signed(p.value, measureSuffix(name, measure)) } };
+            series = [
+                $.extend(true, {}, common, {
+                    name: 'Increase', data: values.map(value => value !== null && value >= 0 ? { value: value, label: { position: 'top' } } : null),
+                    itemStyle: { color: ORANGE },
+                    markLine: { silent: true, symbol: 'none', data: [{yAxis:0}], lineStyle:{color:'#9ba1ad'}, label:{show:false} }
+                }),
+                $.extend(true, {}, common, {
+                    name: 'Decrease', data: values.map(value => value !== null && value < 0 ? { value: value, label: { position: 'bottom' } } : null),
+                    itemStyle: { color: BLUE }, barGap: '-100%'
+                })
+            ];
         }
+        let legendItems = measure == 'levels' ? ['Baseline', 'Reform'] : ['Increase', 'Decrease'];
         return $.extend(true, chartBase(`${info(name).label} comparison.`), {
             tooltip: { trigger: 'axis', valueFormatter: value => fmt(value) + measureSuffix(name, measure) },
-            legend: { show: measure == 'levels', top: 0, right: 10, textStyle: {color:MUTED} },
-            grid: { left: 24, right: 26, top: measure == 'levels' ? 40 : 24, bottom: labels.length > 10 ? 70 : 34, containLabel: true },
+            legend: { data: legendItems, top: 0, right: 10, icon: 'roundRect', itemWidth: 14, itemHeight: 8, textStyle: {color:MUTED} },
+            grid: { left: 24, right: 26, top: 40, bottom: labels.length > 10 ? 70 : 34, containLabel: true },
             xAxis: { type: 'category', data: labels, axisTick:{show:false}, axisLine:{lineStyle:{color:'#ccd0d8'}}, axisLabel:{color:MUTED, rotate:labels.length > 10 ? 35 : 0} },
             yAxis: { type: 'value', axisTick:{show:false}, axisLine:{show:false}, splitLine:{lineStyle:{color:GRID}}, axisLabel:{color:MUTED, formatter:v => axisLabel(v) + measureSuffix(name, measure)} },
             series: series
@@ -941,7 +994,7 @@ export default class OGResults {
         }else{
             let b = $.isArray(OGResults.base[name]) ? OGResults.base[name] : [OGResults.base[name]];
             let r = $.isArray(OGResults.reform[name]) ? OGResults.reform[name] : [OGResults.reform[name]];
-            b = $.map(b, firstNumber); r = $.map(r, firstNumber);
+            b = b.map(firstNumber); r = r.map(firstNumber);
             if (measure == 'levels'){
                 headers = ['Dimension', 'Baseline', 'Reform'];
                 rows = b.map((value, i) => [spec.kind == 'group' ? OGResults.groups[i] : (i + 1), level(name, value), level(name, r[i])]);
@@ -954,7 +1007,7 @@ export default class OGResults {
     }
 
     static tableHtml(headers, rows, label){
-        rows = $.map(rows, row => [$.map(row, resultTableCell)]);
+        rows = rows.map(row => headers.map((_, index) => resultTableCell(row[index])));
         let numeric = $.map(headers, (_, index) => {
             let values = $.map(rows, row => row[index] === null || row[index] === undefined || row[index] === '' ? null : row[index]);
             return values.length > 0 && $.grep(values, value => typeof value != 'number').length == 0;
@@ -1026,10 +1079,10 @@ export default class OGResults {
             let ai = preferred.indexOf(a), bi = preferred.indexOf(b);
             return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
         });
-        let body = rows.map(row => headers.map(header => resultTableCell(row[header])));
+        let body = rows.map(row => headers.map(header => row[header]));
         let displayHeaders = headers.map(header => OGResults.displayTableHeader(header));
         let tableLabel = OGResults.tableLabel(OGResults.activeTableKey);
-        OGResults.activeTable = { headers: displayHeaders, rows: body };
+        OGResults.activeTable = { headers: displayHeaders, rows: body.map(row => row.map(resultTableCell)) };
         $('#ogcTableStatus').hide();
         $('#ogcResultTable').html(OGResults.tableHtml(displayHeaders, body, tableLabel));
         $('#ogcTableExport').prop('disabled', false);
@@ -1084,8 +1137,10 @@ export default class OGResults {
     }
 
     static saveView(){
+        let selection = OGResults.selection || {};
         let saved = {
             country_id: OGResults.workspace.country_id,
+            casename: selection.casename, base: selection.base, reform: selection.reform,
             variable: $('#ogcExploreVariable').val(), measure: $('#ogcExploreMeasure').val(),
             view: $('#ogcExploreView').val(), group: $('#ogcExploreGroup').val()
         };
@@ -1098,8 +1153,40 @@ export default class OGResults {
         if (!chart || chart.isDisposed()) return;
         let link = document.createElement('a');
         let chartName = String(id || 'chart').replace(/^ogc|Chart$/g, '').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-        link.download = `ogcore-${OGResults.selection.casename}-${OGResults.selection.reform}-${chartName}.svg`;
-        link.href = chart.getDataURL({type:'svg', pixelRatio:2, backgroundColor:'#ffffff'});
+        link.download = `ogcore-${OGResults.selection.casename}-${OGResults.selection.base}-${OGResults.selection.reform}-${chartName}.svg`;
+        let data = chart.getDataURL({type:'svg', pixelRatio:2, backgroundColor:'#ffffff'});
+        let svg = new DOMParser().parseFromString(decodeURIComponent(data.slice(data.indexOf(',') + 1)), 'image/svg+xml').documentElement;
+        let width = chart.getWidth(), height = chart.getHeight();
+        let heading = $(chart.getDom()).closest('article').find('h2').first().text();
+        let description = chart.getOption().aria.description || '';
+        let title = [heading, description].filter(Boolean).join(' · ') || 'OG-Core results';
+        let context = document.createElement('canvas').getContext('2d');
+        context.font = '18px Arial';
+        let lines = [''];
+        String(title).split(/\s+/).forEach(word => {
+            let index = lines.length - 1;
+            let next = lines[index] ? `${lines[index]} ${word}` : word;
+            if (lines[index] && context.measureText(next).width > width - 40) lines.push(word);
+            else lines[index] = next;
+        });
+        let padding = lines.length * 24 + 24;
+        let group = document.createElementNS(svg.namespaceURI, 'g');
+        while (svg.firstChild) group.appendChild(svg.firstChild);
+        group.setAttribute('transform', `translate(0 ${padding})`);
+        let background = document.createElementNS(svg.namespaceURI, 'rect');
+        background.setAttribute('width', width); background.setAttribute('height', height + padding);
+        background.setAttribute('fill', '#fff'); svg.appendChild(background);
+        svg.appendChild(group);
+        svg.setAttribute('height', height + padding);
+        svg.setAttribute('viewBox', `0 0 ${width} ${height + padding}`);
+        lines.forEach((line, index) => {
+            let text = document.createElementNS(svg.namespaceURI, 'text');
+            text.setAttribute('x', '20'); text.setAttribute('y', 28 + index * 24);
+            text.setAttribute('font-family', 'Arial, sans-serif'); text.setAttribute('font-size', '18');
+            text.setAttribute('fill', SLATE); text.textContent = line;
+            svg.appendChild(text);
+        });
+        link.href = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
         link.click();
     }
 
@@ -1110,7 +1197,7 @@ export default class OGResults {
             .map(row => $.map(row, quote).join(','));
         let blob = new Blob(['\ufeff' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
         let link = document.createElement('a');
-        link.download = `ogcore-${OGResults.selection.casename}-${OGResults.selection.reform}-${OGResults.activeTableKey || 'table'}.csv`;
+        link.download = `ogcore-${OGResults.selection.casename}-${OGResults.selection.base}-${OGResults.selection.reform}-${OGResults.activeTableKey || 'table'}.csv`;
         link.href = URL.createObjectURL(blob);
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
