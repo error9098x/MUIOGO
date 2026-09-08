@@ -100,7 +100,7 @@ def test_sidebar_active_item_tracks_og_workspace_route(page, base_url):
     page.evaluate("""localStorage.setItem('osy-model', 'og');
         localStorage.setItem('osy-ogc-country', JSON.stringify({country_id:'ETH', country_name:'Ethiopia'}));""")
     page.goto(f"{base_url}/#/OGCases")
-    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(2)
+    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(3)
     expect(page.locator('#Navi > li.nav-og-workspace').filter(
         has=page.locator('a[href="#/OGCases"]'))).to_have_class(re.compile(r'(^|\s)active(\s|$)'))
     expect(page.locator('#Navi > li.nav-home')).not_to_have_class(re.compile(r'(^|\s)active(\s|$)'))
@@ -110,6 +110,7 @@ def test_sidebar_active_item_tracks_og_workspace_route(page, base_url):
 def test_desktop_sidebar_stays_fixed_while_content_scrolls(page, base_url):
     page.goto(base_url)
     result = page.evaluate("""() => {
+        document.body.classList.remove('minified');
         const sidebar = document.querySelector('#left-panel');
         const nav = sidebar && sidebar.querySelector('nav');
         document.body.style.minHeight = '200vh';
@@ -136,7 +137,7 @@ def test_switch_to_clews(page, base_url):
     page.locator("#osy-mb-clews").click()
     expect(page.locator("body.osy-mode-clews")).to_have_count(1)
     expect(page.locator(".project-context")).to_be_visible()
-    expect(page.locator("#Navi > li.nav-og-workspace")).to_have_count(2)
+    expect(page.locator("#Navi > li.nav-og-workspace")).to_have_count(3)
     expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(0)
 
 
@@ -330,7 +331,7 @@ def test_og_workspace_routes_assert_og_mode(page, base_url):
     expect(page.locator("body.osy-mode-og")).to_have_count(1)
     expect(page.locator("body.osy-og-workspace")).to_have_count(1)
     expect(page.locator("#ogcCasesPage")).to_be_visible()
-    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(2)
+    expect(page.locator("#Navi > li.nav-og-workspace:visible")).to_have_count(3)
     expect(page.locator("#ogcCasesPage [data-act='run']")).to_have_count(0)
     page.goto(f"{base_url}/#/OGRuns")
     expect(page.locator("body.osy-mode-og.osy-og-workspace")).to_have_count(1)
@@ -688,19 +689,21 @@ def test_workspace_exit_is_serialized_and_back_cannot_reenter(page, base_url):
         window.__serializedSessionCalls = [];
         Ogc.setSession = async value => { window.__serializedSessionCalls.push(value); };
     }""")
-    page.locator("[href='#/OGCore']").click()
+    page.locator("#Navi .nav-home > a").click()
     expect(page.locator("#ogWorkspaceConfirm")).to_be_visible()
-    page.evaluate("window.location.hash = '#/'")
+    page.evaluate("window.location.hash = '#/OGCore'")
     page.locator('[data-og-confirm="leave"]').click()
-    expect(page).to_have_url(f"{base_url}/#/OGCore")
+    expect(page).to_have_url(f"{base_url}/#/")
     assert page.evaluate("window.__serializedSessionCalls") == [None]
 
     page.go_back()
     expect(page).to_have_url(f"{base_url}/#/OGCore")
     expect(page.locator("body.osy-og-workspace")).to_have_count(0)
     page.go_back()
-    expect(page).to_have_url(f"{base_url}/#/")
+    expect(page).to_have_url(f"{base_url}/#/OGCore")
     expect(page.locator("body.osy-og-workspace")).to_have_count(0)
+    assert page.evaluate("localStorage.getItem('osy-ogc-country')") is None
+    assert page.evaluate("window.__serializedSessionCalls") == [None]
 
 
 def test_add_case_dialog_switches_between_baseline_and_reform(page, base_url):
@@ -966,6 +969,7 @@ def test_run_queue_orders_dependencies_and_marks_cache(page, base_url):
         );
         base.run.status = 'completed';
         reform.run.status = 'completed';
+        base.run.time_path = reform.run.time_path = false;
         const cached = Runs.buildQueue([reform, base], {
             'ETH:ethiopia-case:reform': true, 'ETH:ethiopia-case:base': true
         }, false);
@@ -1367,7 +1371,7 @@ def test_cached_status_error_always_reenables_run_controls(page, base_url):
         }));
         Ogc.getCases = async () => [{casename: 'case-one', country_id: 'ETH'}];
         Ogc.getRuns = async () => ({runs: [{
-            run_name: 'baseline', run_type: 'baseline', status: 'completed',
+            run_name: 'baseline', run_type: 'baseline', status: 'completed', time_path: false,
             completed_at: '2026-08-13T10:00:00Z'
         }]});
         Ogc.getRunQueue = async () => ({active: null, queued: []});

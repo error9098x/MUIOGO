@@ -2,6 +2,25 @@
   <h1 class="ogc-title" id="ogcRunsTitle">Run</h1>
   <div class="ogc-sub" id="ogcRunsSub">Select baselines and reforms to run.</div>
 
+  <div class="ogc-ctxbar">
+    <span class="ogc-country-summary">
+      <span class="ogc-country-flag" id="ogcRunCountryFlag"></span>
+      <span class="ogc-country-copy">
+        <b id="ogcRunCountryName"></b>
+        <span class="ogc-country-code" id="ogcRunCountryId"></span>
+      </span>
+    </span>
+  </div>
+
+  <div class="ogc-editbar">
+    <label for="ogcAnalysis">Analysis</label>
+    <select class="ogc-select" id="ogcAnalysis" aria-describedby="ogcAnalysisDescription">
+      <option value="steady">Steady state</option>
+      <option value="transition">Transition path</option>
+    </select>
+    <span class="ogc-mut" id="ogcAnalysisDescription">Solve the long-run equilibrium. Required baselines use the same analysis.</span>
+  </div>
+
   <div class="ogc-run-controls">
     <label><input type="checkbox" id="ogcForceRun"> Re-run completed selections</label>
     <span class="ogc-run-actions">

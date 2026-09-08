@@ -3,8 +3,8 @@ import { NavigationGuard } from "../../Classes/NavigationGuard.Class.js";
 import { Ogc } from "../../Classes/Ogc.Class.js";
 import { escapeHtml as esc } from "../../Classes/Html.Class.js";
 import { Model } from "../Model/OGParameters.Model.js";
-import { loadSelection } from "./OGCases.js";
-import { GROUPS, TIER } from "../Model/OGParams.Overlay.js";
+import { FLAG_ISO2, loadSelection, loadWorkspace } from "./OGCases.js";
+import { FREQUENT_PARAMETERS, GROUPS, TIER } from "../Model/OGParams.Overlay.js";
 import { OGTableEditor } from "./OGTableEditor.js";
 
 const TIER_LABEL = {};
@@ -95,6 +95,15 @@ export default class OGParameters {
 
     static renderContext(model){
         let sel = model.selection;
+        let workspace = loadWorkspace();
+        let countryName = workspace && workspace.country_id == sel.country_id
+            ? workspace.country_name : sel.country_id;
+        let iso2 = FLAG_ISO2[sel.country_id];
+        $('#ogcParamsCountryName').text(countryName);
+        $('#ogcParamsCountryId').text(sel.country_id);
+        $('#ogcParamsCountryFlag').html(iso2
+            ? `<img class="ogc-flag" src="References/flags/4x3/${iso2}.svg" alt="">`
+            : '<span class="ogc-flag ogc-flag-none"><i class="fa fa-flag-o"></i></span>');
         let displayName = sel.display_name || sel.run_name;
         let baselineName = sel.baseline_display_name || sel.baseline_run;
         let kindTag = model.isReform
@@ -133,19 +142,33 @@ export default class OGParameters {
 
     static renderGroups(model){
         let html = '';
+        let frequent = FREQUENT_PARAMETERS.filter(name => model.fields[name]);
+        if (model.cur.tax_func_type == 'linear'){
+            ['etr_params', 'mtrx_params', 'mtry_params'].forEach(function (name) {
+                let field = model.fields[name];
+                if (field && field.dimension == 'scalar' && model.editable(name)) frequent.push(name);
+            });
+        }
+        if (frequent.length){
+            html += OGParameters.groupHtml(model, {
+                id: 'frequent', title: 'Frequently Used Parameters', icon: 'fa-star'
+            }, frequent, true);
+        }
         let lastTier = null;
         $.each(model.groupsWithFields(), function (id, g) {
+            let names = model.byGroup[g.id].filter(name => frequent.indexOf(name) < 0);
+            if (!names.length) return;
             if (g.tier != lastTier){
                 html += `<div class="ogc-tier">${esc(TIER_LABEL[g.tier] || '')}</div>`;
                 lastTier = g.tier;
             }
-            html += OGParameters.groupHtml(model, g);
+            html += OGParameters.groupHtml(model, g, names);
         });
         $('#ogcParamsBody').html(html);
     }
 
-    static groupHtml(model, group){
-        let names = model.byGroup[group.id] || [];
+    static groupHtml(model, group, names, expanded){
+        names = names || model.byGroup[group.id] || [];
         let bySub = {};
         let subOrder = [];
         $.each(names, function (id, name) {
@@ -166,7 +189,7 @@ export default class OGParameters {
                 body += OGParameters.fieldHtml(model, name);
             });
         });
-        let open = group.tier == TIER.LEVERS ? ' open' : '';
+        let open = expanded ? ' open' : '';
         return `
             <details class="ogc-acc" data-group="${esc(group.id)}"${open}>
                 <summary><i class="fa fa-grp ${esc(group.icon)}"></i> ${esc(group.title)}<span class="ogc-chgbadge"></span></summary>
