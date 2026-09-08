@@ -39,7 +39,8 @@ def _free_port():
 def base_url():
     """Real server on a free port, torn down after the session."""
     port = _free_port()
-    env = dict(os.environ, PORT=str(port))
+    # Avoid network catalogue requests in local browser tests.
+    env = dict(os.environ, PORT=str(port), MUIOGO_CLEWS_CATALOG_URL="")
     log = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
     proc = subprocess.Popen(
         [sys.executable, str(REPO_ROOT / "API" / "app.py")],
