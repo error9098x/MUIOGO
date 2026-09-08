@@ -163,6 +163,14 @@ export class Routes {
                 loadView(version, 'App/View/LegacyImport.html', 'LegacyImport', () => ViewData.default.onLoad());
             }).catch(error => viewFailed(version, error));
         });
+        crossroads.addRoute('/ClewsInstall', function() {
+            enterModel('clews');
+            let version = beginView();
+            import('../App/Controller/ClewsInstall.js')
+            .then(ClewsInstall => {
+                loadView(version, 'App/View/ClewsInstall.html', 'ClewsInstall', () => ClewsInstall.default.onLoad());
+            }).catch(error => viewFailed(version, error));
+        });
         crossroads.addRoute('/OGCore', function() {
             enterModel('og');
             let version = beginView();
