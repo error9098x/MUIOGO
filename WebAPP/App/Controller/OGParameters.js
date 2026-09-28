@@ -116,7 +116,6 @@ export default class OGParameters {
         $('#ogcParamsCtx').html(`
             ${kindTag}
             <span><b>${esc(displayName)}</b>${of}</span>
-            <span class="ogc-tag ogc-tag-mut">${esc(sel.country_id || '')}</span>
             <span class="ogc-ctx-right">
                 <span class="ogc-mut">Compare against</span>
                 <select id="ogcCmpRef">${OGParameters.refOptions(model)}</select>

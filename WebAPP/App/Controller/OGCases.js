@@ -179,7 +179,7 @@ export default class OGCases {
         let incomplete = $.grep(visible, e => !e.run);
         $('[data-act="layout"]').each(function () {
             let selected = $(this).attr('data-layout') == OGCases.layout;
-            $(this).toggleClass('ogc-btn-main', selected).attr('aria-pressed', selected ? 'true' : 'false');
+            $(this).attr('aria-pressed', selected ? 'true' : 'false');
         });
         if (OGCases.layout == 'separate'){
             $('#ogcCasesContent').html(`<div class="ogc-case-split">
@@ -243,15 +243,15 @@ export default class OGCases {
         let type = run.run_type == 'reform' ? 'reform' : 'baseline';
         let name = OGCases.displayName(c, run);
         let addReform = type == 'baseline'
-            ? `<button class="btn ogc-btn ogc-btn-sm" data-act="add-reform" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Create a policy change to compare with this baseline"><i class="fa fa-plus"></i> Add reform</button>`
+            ? `<button class="btn ogc-btn ogc-btn-sm ogc-btn-ghost" data-act="add-reform" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Create a policy change to compare with this baseline"><i class="fa fa-plus"></i> <span class="ogc-btn-txt">Add reform</span></button>`
             : '';
         return `<tr class="ogc-case-row${nested ? ' ogc-nested' : ''}" data-act="expand" data-key="${esc(key)}">
             <td><i class="fa fa-caret-right ogc-caret"></i> <b>${esc(name)}</b></td>
             <td><span class="ogc-tag ogc-tag-${type == 'reform' ? 'reform' : 'base'}">${type}</span></td>
             <td class="ogc-mut">${esc(from)}</td>
-            <td class="ogc-actcell"><span class="ogc-row-actions">${addReform}<span class="ogc-run-actions"><button class="btn ogc-btn ogc-btn-sm ogc-btn-main" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> Run</button>
-            <button class="btn ogc-btn ogc-btn-sm ogc-btn-main" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> Edit</button>
-            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-ico ogc-btn-main" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
+            <td class="ogc-actcell"><span class="ogc-row-actions"><span class="ogc-addslot">${addReform}</span><span class="ogc-run-actions"><button class="btn ogc-btn ogc-btn-sm ogc-btn-ghost" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> <span class="ogc-btn-txt">Run</span></button>
+            <button class="btn ogc-btn ogc-btn-sm ogc-btn-ghost" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> <span class="ogc-btn-txt">Edit</span></button>
+            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-sm ogc-btn-ico ogc-btn-ghost" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
             <span class="ogc-case-menu" role="menu" aria-hidden="true">
                 <button type="button" role="menuitem" class="ogc-menu-danger" data-act="del-run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}"><i class="fa fa-trash"></i> ${type == 'baseline' ? 'Delete baseline' : 'Delete reform'}</button>
             </span></span></span></span></td></tr>
@@ -321,7 +321,7 @@ export default class OGCases {
         let body = `
             <div class="ogc-formrow">
                 <label>Type</label>
-                <div class="ogc-view-switch" role="group" aria-label="Case type">
+                <div class="ogc-seg" role="group" aria-label="Case type">
                     <button class="btn ogc-btn" data-act="case-type" data-type="baseline">Baseline</button>
                     <button class="btn ogc-btn" data-act="case-type" data-type="reform"${choices.length ? '' : ' disabled title="Create a baseline before adding a reform"'}>Reform</button>
                 </div>
@@ -356,7 +356,7 @@ export default class OGCases {
         let reform = type == 'reform';
         $('#ogcCasesModal [data-act="case-type"]').each(function () {
             let selected = $(this).attr('data-type') == type;
-            $(this).toggleClass('ogc-btn-main', selected).attr('aria-pressed', selected ? 'true' : 'false');
+            $(this).attr('aria-pressed', selected ? 'true' : 'false');
         });
         $('#ogcCaseBaseWrap').toggle(reform);
         $('#ogcCaseName').val(modal.attr('data-' + type + '-name'));

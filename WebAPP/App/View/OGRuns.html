@@ -13,18 +13,20 @@
   </div>
 
   <div class="ogc-editbar">
-    <label for="ogcAnalysis">Analysis</label>
-    <select class="ogc-select" id="ogcAnalysis" aria-describedby="ogcAnalysisDescription">
-      <option value="steady">Steady state</option>
-      <option value="transition">Transition path</option>
-    </select>
+    <span class="ogc-eb-label" id="ogcAnalysisLabel">Analysis</span>
+    <div class="ogc-seg ogc-seg-radio" role="radiogroup" aria-labelledby="ogcAnalysisLabel" aria-describedby="ogcAnalysisDescription">
+      <input type="radio" name="ogcAnalysis" id="ogcAnalysisSteady" value="steady" checked>
+      <label class="btn ogc-btn" for="ogcAnalysisSteady">Steady state</label>
+      <input type="radio" name="ogcAnalysis" id="ogcAnalysisTransition" value="transition">
+      <label class="btn ogc-btn" for="ogcAnalysisTransition">Transition path</label>
+    </div>
     <span class="ogc-mut" id="ogcAnalysisDescription">Solve the long-run equilibrium. Required baselines use the same analysis.</span>
   </div>
 
   <div class="ogc-run-controls">
     <label><input type="checkbox" id="ogcForceRun"> Re-run completed selections</label>
     <span class="ogc-run-actions">
-      <button class="btn ogc-btn ogc-btn-main" id="ogcRefreshRuns" data-act="refresh" title="Refresh runs started or changed in another tab"><i class="fa fa-refresh"></i> Refresh</button>
+      <button class="btn ogc-btn" id="ogcRefreshRuns" data-act="refresh" title="Refresh runs started or changed in another tab"><i class="fa fa-refresh"></i> Refresh</button>
       <button class="btn ogc-btn ogc-btn-danger" id="ogcCancelRun" data-act="cancel" style="display:none"><i class="fa fa-stop"></i> Cancel active runs</button>
       <button class="btn ogc-btn ogc-btn-main" id="ogcRunSelected" data-act="run-selected"><i class="fa fa-play"></i> Run selected</button>
     </span>

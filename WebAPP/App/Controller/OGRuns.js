@@ -445,11 +445,11 @@ export default class OGRuns {
         $('#ogcSelectAll').html(`<i class="fa fa-${allSelected ? 'square-o' : 'check-square-o'}"></i> ${allSelected ? 'Clear selection' : 'Select all'}`);
         let active = $.grep(OGRuns.entries || [], entry => ACTIVE_STATES.indexOf(entry.state) >= 0).length;
         $('#ogcCancelRun').toggle(!!active || OGRuns.running).prop('disabled', !active && !OGRuns.running);
-        $('#ogcForceRun, #ogcSelectAll, #ogcAnalysis, #ogcRefreshRuns').prop('disabled', OGRuns.running);
+        $('#ogcForceRun, #ogcSelectAll, input[name="ogcAnalysis"], #ogcRefreshRuns').prop('disabled', OGRuns.running);
     }
 
     static timePath(){
-        return $('#ogcAnalysis').val() == 'transition';
+        return $('input[name="ogcAnalysis"]:checked').val() == 'transition';
     }
 
     static canReuse(entry, timePath){
@@ -727,7 +727,7 @@ export default class OGRuns {
             OGRuns.selected[$(this).attr('data-key')] = $(this).prop('checked');
             OGRuns.updateControls();
         })
-        .on('change.ogruns', '#ogcForceRun, #ogcAnalysis', function () { OGRuns.render(); })
+        .on('change.ogruns', '#ogcForceRun, input[name="ogcAnalysis"]', function () { OGRuns.render(); })
         .on('click.ogruns', '[data-act]', async function (event) {
             event.preventDefault();
             let act = $(this).attr('data-act');

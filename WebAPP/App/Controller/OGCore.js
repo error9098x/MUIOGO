@@ -180,6 +180,11 @@ export default class OGCore {
             </div>`;
     }
 
+    //remove is a quiet icon at the end of every installed card's action row
+    static removeHtml(){
+        return `<button class="btn ogc-btn ogc-btn-ghost ogc-btn-ico ogc-card-remove" data-act="remove" title="Remove from MUIOGO" aria-label="Remove from MUIOGO"><i class="fa fa-trash-o"></i></button>`;
+    }
+
     //register calibrations (catalog_key, no record) and repo_url customs are
     //updatable by MUIOGO; a local_path record is too when the server found the
     //clone safe to pull (record.updatable, set by Check for updates), otherwise
@@ -187,7 +192,7 @@ export default class OGCore {
     static actionsHtml(c, record){
         let state = c.install_state;
         if (state == 'not_installed'){
-            return `<button class="btn ogc-btn ogc-btn-line" data-act="install"><i class="fa fa-download"></i> Install</button>`;
+            return `<button class="btn ogc-btn" data-act="install"><i class="fa fa-download"></i> Install</button>`;
         }
         if (state == 'installing' || state == 'checking'){
             return `<button class="btn ogc-btn ogc-btn-line ogc-btn-busy" data-act="log" title="Show the install log">
@@ -199,7 +204,7 @@ export default class OGCore {
                         ? '<button class="btn ogc-btn ogc-btn-danger" data-act="log"><i class="fa fa-exclamation-triangle"></i> View update error</button>'
                         : ''}
                     <button class="btn ogc-btn" data-act="check" title="Check for updates"><i class="fa fa-refresh"></i> Check for updates</button>
-                    <button class="btn ogc-btn" data-act="remove" title="Remove from MUIOGO"><i class="fa fa-times"></i> Remove</button>`;
+                    ${OGCore.removeHtml()}`;
         }
         if (state == 'update_available'){
             if (record && record.source_type == 'local_path' && !record.updatable){
@@ -208,15 +213,15 @@ export default class OGCore {
                     : 'This calibration comes from a local folder. Update the folder yourself, then check again.';
                 return `<div class="ogc-updatenote" title="${why}">Update the local folder to get this version</div>
                         <button class="btn ogc-btn ogc-btn-line" data-act="check"><i class="fa fa-refresh"></i> Check again</button>
-                        <button class="btn ogc-btn" data-act="remove" title="Remove from MUIOGO"><i class="fa fa-times"></i> Remove</button>`;
+                        ${OGCore.removeHtml()}`;
             }
-            return `<button class="btn ogc-btn ogc-btn-main" data-act="update"><i class="fa fa-arrow-circle-up"></i> Update</button>
-                    <button class="btn ogc-btn" data-act="remove" title="Remove from MUIOGO"><i class="fa fa-times"></i> Remove</button>`;
+            return `<button class="btn ogc-btn" data-act="update"><i class="fa fa-arrow-circle-up"></i> Update</button>
+                    ${OGCore.removeHtml()}`;
         }
         if (state == 'failed'){
             return `<button class="btn ogc-btn ogc-btn-line" data-act="log"><i class="fa fa-file-text-o"></i> View error</button>
                     <button class="btn ogc-btn ogc-btn-danger" data-act="retry"><i class="fa fa-refresh"></i> Retry</button>
-                    <button class="btn ogc-btn" data-act="remove" title="Remove from MUIOGO"><i class="fa fa-times"></i> Remove</button>`;
+                    ${OGCore.removeHtml()}`;
         }
         return '';
     }
