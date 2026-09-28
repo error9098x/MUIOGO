@@ -199,6 +199,13 @@ export class Ogc {
         return Ogc._request('POST', 'ogc/' + path, payload);
     }
 
+    // Labelled, unit-consistent results for one run (reformRun null) or a pair.
+    static getResultsReport(countryId, casename, baseRun, reformRun) {
+        let payload = { country_id: countryId, casename: casename, base_run: baseRun };
+        if (reformRun) payload.reform_run = reformRun;
+        return Ogc._request('POST', 'ogc/getResultsReport', payload);
+    }
+
     static getMacroTableSS(countryId, casename, baseRun, reformRun) {
         return Ogc.getResultTable('getMacroTableSS', countryId, casename, baseRun, reformRun);
     }
