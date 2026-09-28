@@ -70,7 +70,7 @@ test('frequent controls appear once and open, while remaining groups stay reacha
     assert.match($('#ogcParamsBody').content, /data-param="etr_params"/);
 });
 
-test('case action markup retains actions with the orange primary style', () => {
+test('case action markup keeps every row action as a labelled icon button', () => {
     OGCases.workspace = { country_id: 'ETH', country_name: 'Ethiopia' };
     OGCases.model = { records: { ETH: {} } };
     assert.doesNotMatch(OGCases.defaultRow(), /<button/);
@@ -80,16 +80,19 @@ test('case action markup retains actions with the orange primary style', () => {
     });
     assert.match(html, /data-act="add-reform" data-case="Test" data-run="baseline"/);
     assert.doesNotMatch(OGCases.defaultRow(), /data-act="(?:create-case|new-case)"/);
-    for (const action of ['run', 'params', 'run-menu']) {
-        assert.match(html, new RegExp('<button class="[^"]*ogc-btn-main[^"]*" data-act="' + action + '"'));
+    for (const action of ['add-reform', 'run', 'params', 'run-menu']) {
+        assert.match(html, new RegExp('<button class="[^"]*ogc-btn-row[^"]*" data-act="' + action + '"'));
     }
+    // icon-only buttons still carry an accessible name
+    assert.match(html, /data-act="run"[^>]*title="[^"]+"[^>]*>.*<span class="ogc-btn-txt">Run<\/span>/);
+    assert.match(html, /data-act="params"[^>]*title="[^"]+"[^>]*>.*<span class="ogc-btn-txt">Edit<\/span>/);
 });
 
 test('country action labels distinguish update checks from updates and removal', () => {
     assert.match(OGCore.actionsHtml({ install_state: 'installed' }), /> Check for updates<\/button>/);
     for (const state of ['installed', 'update_available', 'failed']) {
         const html = OGCore.actionsHtml({ install_state: state });
-        assert.match(html, /data-act="remove"[^>]*>.* Remove<\/button>/);
+        assert.match(html, /data-act="remove"[^>]*aria-label="Remove from MUIOGO"/);
         assert.doesNotMatch(html, /> Delete<\/button>/);
     }
     assert.match(OGCore.actionsHtml({ install_state: 'update_available' }), /data-act="update"[^>]*>.* Update<\/button>/);
