@@ -13,13 +13,11 @@
   </div>
 
   <div class="ogc-editbar">
-    <span class="ogc-eb-label" id="ogcAnalysisLabel">Analysis</span>
-    <div class="ogc-seg ogc-seg-radio" role="radiogroup" aria-labelledby="ogcAnalysisLabel" aria-describedby="ogcAnalysisDescription">
-      <input type="radio" name="ogcAnalysis" id="ogcAnalysisSteady" value="steady" checked>
-      <label class="btn ogc-btn" for="ogcAnalysisSteady">Steady state</label>
-      <input type="radio" name="ogcAnalysis" id="ogcAnalysisTransition" value="transition">
-      <label class="btn ogc-btn" for="ogcAnalysisTransition">Transition path</label>
-    </div>
+    <label for="ogcAnalysis">Analysis</label>
+    <select class="ogc-select" id="ogcAnalysis" aria-describedby="ogcAnalysisDescription">
+      <option value="steady">Steady state</option>
+      <option value="transition">Transition path</option>
+    </select>
     <span class="ogc-mut" id="ogcAnalysisDescription">Solve the long-run equilibrium. Required baselines use the same analysis.</span>
   </div>
 

@@ -243,15 +243,15 @@ export default class OGCases {
         let type = run.run_type == 'reform' ? 'reform' : 'baseline';
         let name = OGCases.displayName(c, run);
         let addReform = type == 'baseline'
-            ? `<button class="btn ogc-btn ogc-btn-sm ogc-btn-soft" data-act="add-reform" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Create a policy change to compare with this baseline"><i class="fa fa-plus"></i> <span class="ogc-btn-txt">Add reform</span></button>`
+            ? `<button class="btn ogc-btn ogc-btn-sm ogc-btn-row" data-act="add-reform" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Create a policy change to compare with this baseline"><i class="fa fa-plus"></i> <span class="ogc-btn-txt">Add reform</span></button>`
             : '';
         return `<tr class="ogc-case-row${nested ? ' ogc-nested' : ''}" data-act="expand" data-key="${esc(key)}">
             <td><i class="fa fa-caret-right ogc-caret"></i> <b>${esc(name)}</b></td>
             <td><span class="ogc-tag ogc-tag-${type == 'reform' ? 'reform' : 'base'}">${type}</span></td>
             <td class="ogc-mut">${esc(from)}</td>
-            <td class="ogc-actcell"><span class="ogc-row-actions"><span class="ogc-addslot">${addReform}</span><span class="ogc-run-actions"><button class="btn ogc-btn ogc-btn-sm ogc-btn-soft" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> <span class="ogc-btn-txt">Run</span></button>
-            <button class="btn ogc-btn ogc-btn-sm ogc-btn-soft" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> <span class="ogc-btn-txt">Edit</span></button>
-            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-sm ogc-btn-ico ogc-btn-ghost" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
+            <td class="ogc-actcell"><span class="ogc-row-actions"><span class="ogc-addslot">${addReform}</span><span class="ogc-run-actions"><button class="btn ogc-btn ogc-btn-sm ogc-btn-row" data-act="run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Open the run queue with this configuration selected"><i class="fa fa-play"></i> <span class="ogc-btn-txt">Run</span></button>
+            <button class="btn ogc-btn ogc-btn-sm ogc-btn-row" data-act="params" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" title="Edit the parameters used by this run"><i class="fa fa-pencil"></i> <span class="ogc-btn-txt">Edit</span></button>
+            <span class="ogc-action-menu"><button class="btn ogc-btn ogc-btn-sm ogc-btn-row ogc-btn-more" data-act="run-menu" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}" aria-label="Actions for ${esc(name)}" aria-haspopup="menu" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
             <span class="ogc-case-menu" role="menu" aria-hidden="true">
                 <button type="button" role="menuitem" class="ogc-menu-danger" data-act="del-run" data-case="${esc(c.casename)}" data-run="${esc(run.run_name)}"><i class="fa fa-trash"></i> ${type == 'baseline' ? 'Delete baseline' : 'Delete reform'}</button>
             </span></span></span></span></td></tr>

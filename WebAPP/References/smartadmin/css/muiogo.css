@@ -107,9 +107,6 @@ body.osy-mode-og.osy-og-workspace #Navi > li.nav-og-workspace{display:block!impo
 /* ===== sidebar rail =====
    Icons are muted at rest and white when active. The active item gets a solid
    full-height accent stripe and a light tint, replacing the skin's faded PNG glow. */
-body.smart-style-4 nav>ul>li>a{color:#a3a9ba}
-body.smart-style-4 nav>ul>li>a:hover{color:#fff}
-body.smart-style-4 nav>ul>li.active>a{color:#fff}
 body.smart-style-4:not(.menu-on-top) nav ul li.active:not(.open)>a:before,
 body.smart-style-4 nav>ul>li.active:not(.open)>a:before{border-left-color:var(--osy-accent)}
 /* center every rail icon regardless of fa-fw / fa-lg width differences */
@@ -284,19 +281,10 @@ span.ogc-flag-none{width:34px;height:26px;display:flex;align-items:center;justif
 .ogc-seg .ogc-btn+.ogc-btn{margin-left:-1px}
 .ogc-seg .ogc-btn:first-of-type{border-radius:var(--osy-radius) 0 0 var(--osy-radius)}
 .ogc-seg .ogc-btn:last-of-type{border-radius:0 var(--osy-radius) var(--osy-radius) 0}
-.ogc-seg .ogc-btn[aria-pressed="true"],
-.ogc-seg-radio input:checked+label.ogc-btn{position:relative;z-index:1;background:#fff;color:#3a3f51;font-weight:700;
+.ogc-seg .ogc-btn[aria-pressed="true"]{position:relative;z-index:1;background:#fff;color:#3a3f51;font-weight:700;
     border-color:#c3c8d1;box-shadow:inset 0 -2px 0 var(--osy-og)}
 .ogc-seg .ogc-btn .fa{color:#9aa0b4}
 .ogc-seg .ogc-btn[aria-pressed="true"] .fa{color:var(--osy-og)}
-/* radio-backed segments (Run analysis): the input stays for keyboard and form semantics */
-.ogc-seg .ogc-btn[disabled],.ogc-seg .ogc-btn[disabled]:hover{background:#f4f5f7;color:#b3b8c2}
-.ogc-seg-radio{position:relative}
-.ogc-seg-radio input{position:absolute;opacity:0;pointer-events:none}
-.ogc-seg-radio label.ogc-btn{margin:0;cursor:pointer;font-weight:400}
-.ogc-seg-radio label.ogc-btn~input+label.ogc-btn{margin-left:-1px}
-.ogc-seg-radio input:focus-visible+label{outline:2px solid var(--osy-slate);outline-offset:2px}
-.ogc-seg-radio input:disabled+label{cursor:not-allowed;opacity:.6}
 
 /* add calibration card */
 .ogc-addcard{border-style:dashed;border-color:#c4c8d2;text-align:center;cursor:pointer;color:#6e7687;
@@ -384,12 +372,17 @@ span.ogc-flag-none{width:34px;height:26px;display:flex;align-items:center;justif
 .ogc-row-actions{display:inline-flex;justify-content:flex-end;align-items:center;flex-wrap:nowrap;gap:2px}
 .ogc-run-actions{display:inline-flex;align-items:center;gap:2px}
 /* keeps Run / Edit / menu in the same column on baseline and reform rows */
-.ogc-addslot{display:inline-flex;justify-content:flex-end;min-width:104px}
-/* the two-table view is narrower: row actions become icons (each has a title) */
-.ogc-case-split .ogc-btn-txt{display:none}
-.ogc-case-split .ogc-row-actions .ogc-btn .fa{margin-right:0}
-.ogc-case-split .ogc-row-actions .ogc-btn-sm{padding:4px 8px}
-.ogc-case-split .ogc-addslot{min-width:30px}
+.ogc-addslot{display:inline-flex;justify-content:flex-end;min-width:32px}
+/* row actions: icon-only (title gives the tooltip, the hidden text the accessible
+   name), accent-coloured icon, no box at rest, tonal tint on hover */
+.ogc-btn-row{width:32px;height:30px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;
+    background:transparent;border-color:transparent;color:var(--osy-og-dark)}
+.ogc-btn-row .fa{margin:0;font-size:13px;color:var(--osy-og)}
+.ogc-btn-row:hover,.ogc-action-menu.ogc-menu-open>.ogc-btn-row{background:#fff1e3;border-color:#f6cfa9;color:var(--osy-og-dark)}
+.ogc-btn-row:hover .fa{color:var(--osy-og-dark)}
+.ogc-btn-more .fa{color:#8a8f9c}
+.ogc-btn-row .ogc-btn-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn.ogc-btn-row:focus,.btn.ogc-btn-row:active{color:var(--osy-og-dark)}
 .ogc-action-menu{display:inline-block;position:relative}
 .ogc-case-menu{display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:145px;
   padding:4px;background:#fff;border:1px solid #dfe1e6;border-radius:6px;box-shadow:0 6px 20px rgba(34,43,60,.14);text-align:left}
