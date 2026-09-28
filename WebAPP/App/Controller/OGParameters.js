@@ -355,7 +355,7 @@ export default class OGParameters {
             : 'Edit the complete table';
         return `<div class="ogc-table-preview">
             <div class="ogc-table-preview-top"><span>${esc(OGParameters.tableShapeLabel(shape))}</span>
-                <button type="button" class="btn ogc-btn ogc-btn-sm" data-act="edit-table" title="${esc(editTitle)}">Edit table</button></div>
+                <button type="button" class="btn ogc-btn ogc-btn-sm ogc-btn-soft" data-act="edit-table" title="${esc(editTitle)}">Edit table</button></div>
             <div class="ogc-table-preview-scroll">${html}</div>
         </div>`;
     }

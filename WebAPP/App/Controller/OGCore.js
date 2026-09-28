@@ -192,7 +192,7 @@ export default class OGCore {
     static actionsHtml(c, record){
         let state = c.install_state;
         if (state == 'not_installed'){
-            return `<button class="btn ogc-btn" data-act="install"><i class="fa fa-download"></i> Install</button>`;
+            return `<button class="btn ogc-btn ogc-btn-soft" data-act="install"><i class="fa fa-download"></i> Install</button>`;
         }
         if (state == 'installing' || state == 'checking'){
             return `<button class="btn ogc-btn ogc-btn-line ogc-btn-busy" data-act="log" title="Show the install log">
@@ -203,7 +203,7 @@ export default class OGCore {
             return `${record && record.last_error
                         ? '<button class="btn ogc-btn ogc-btn-danger" data-act="log"><i class="fa fa-exclamation-triangle"></i> View update error</button>'
                         : ''}
-                    <button class="btn ogc-btn" data-act="check" title="Check for updates"><i class="fa fa-refresh"></i> Check for updates</button>
+                    <button class="btn ogc-btn ogc-btn-soft" data-act="check" title="Check for updates"><i class="fa fa-refresh"></i> Check for updates</button>
                     ${OGCore.removeHtml()}`;
         }
         if (state == 'update_available'){
@@ -212,10 +212,10 @@ export default class OGCore {
                     ? esc(record.update_blocked_reason) + ' Update the folder yourself, then check again.'
                     : 'This calibration comes from a local folder. Update the folder yourself, then check again.';
                 return `<div class="ogc-updatenote" title="${why}">Update the local folder to get this version</div>
-                        <button class="btn ogc-btn ogc-btn-line" data-act="check"><i class="fa fa-refresh"></i> Check again</button>
+                        <button class="btn ogc-btn ogc-btn-soft" data-act="check"><i class="fa fa-refresh"></i> Check again</button>
                         ${OGCore.removeHtml()}`;
             }
-            return `<button class="btn ogc-btn" data-act="update"><i class="fa fa-arrow-circle-up"></i> Update</button>
+            return `<button class="btn ogc-btn ogc-btn-soft" data-act="update"><i class="fa fa-arrow-circle-up"></i> Update</button>
                     ${OGCore.removeHtml()}`;
         }
         if (state == 'failed'){

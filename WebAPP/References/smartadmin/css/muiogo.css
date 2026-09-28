@@ -109,12 +109,13 @@ body.osy-mode-og.osy-og-workspace #Navi > li.nav-og-workspace{display:block!impo
    full-height accent stripe and a light tint, replacing the skin's faded PNG glow. */
 body.smart-style-4 nav>ul>li>a{color:#a3a9ba}
 body.smart-style-4 nav>ul>li>a:hover{color:#fff}
-body.smart-style-4 nav>ul>li.active>a{background:rgba(255,255,255,.07);color:#fff}
+body.smart-style-4 nav>ul>li.active>a{color:#fff}
 body.smart-style-4:not(.menu-on-top) nav ul li.active:not(.open)>a:before,
-body.smart-style-4 nav>ul>li.active:not(.open)>a:before{
-    background-image:none!important;border-left:3px solid var(--osy-accent)!important;
-    top:0!important;height:100%!important;
-}
+body.smart-style-4 nav>ul>li.active:not(.open)>a:before{border-left-color:var(--osy-accent)}
+/* center every rail icon regardless of fa-fw / fa-lg width differences */
+body.minified #left-panel nav>ul>li>a{display:flex!important;align-items:center;justify-content:center;
+    padding-left:0!important;padding-right:0!important}
+body.minified #left-panel nav>ul>li>a>i{width:auto;margin:0!important;text-align:center}
 /* softer dividers between minified items (the skin uses near-black and grey lines) */
 body.minified nav>ul>li{border-top-color:transparent;border-bottom-color:rgba(0,0,0,.18)}
 
@@ -241,10 +242,15 @@ span.ogc-flag-none{width:34px;height:26px;display:flex;align-items:center;justif
    Hierarchy: -main (filled accent) is the one primary action of a page or
    panel; plain .ogc-btn is secondary; -ghost is for dense row/card actions;
    -danger is for destructive confirmations. Disabled is neutral grey for all. */
-.ogc-btn{font-size:12px;padding:5px 12px;border-radius:var(--osy-radius);border:1px solid #d5d8de;background:#fff;color:#3a3f51;
-    transition:background-color .12s ease,border-color .12s ease,color .12s ease}
+.ogc-btn{font-size:12px;padding:5px 12px;border-radius:var(--osy-radius);border:1px solid #c3c9d2;background:#fff;color:#3a3f51;
+    box-shadow:none!important;transition:background-color .12s ease,border-color .12s ease,color .12s ease}
 .ogc-btn .fa{margin-right:4px}
-.ogc-btn:hover{background:#f6f7f9;border-color:#c3c8d1;color:#3a3f51}
+.ogc-btn:hover{background:#f4f5f7;border-color:#9aa1ad;color:#3a3f51}
+/* soft: the secondary action style, a tonal orange that reads on white cards */
+.ogc-btn-soft{background:#fff1e3;border-color:#f6cfa9;color:#a4520f}
+.ogc-btn-soft .fa{color:var(--osy-og)}
+.ogc-btn-soft:hover{background:#ffe3c7;border-color:#efb27a;color:#8a440b}
+.btn.ogc-btn-soft:focus,.btn.ogc-btn-soft:active{color:#8a440b}
 .ogc-btn-main{background:var(--osy-og);border-color:var(--osy-og-dark);color:#fff}
 .ogc-btn-main:hover{background:var(--osy-og-dark);border-color:var(--osy-og-dark);color:#fff}
 .ogc-btn-danger{background:#d9534f;border-color:#b52b27;color:#fff}
