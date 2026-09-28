@@ -36,6 +36,10 @@ calibration's Python environment.
     calibration environment and writes model results.
   - `API/Classes/OGCore/OGResults.py` and `OGTables.py` read completed result
     artifacts and build OG-Core-native analysis responses.
+  - `API/Classes/OGCore/OGReport.py` owns the Results page's variable catalog
+    and comparison rules (levels as percent change, rates in percentage points,
+    fiscal values as shares of GDP, negative baselines flagged) and the
+    population-weighted household views, served by `/ogc/getResultsReport`.
 
 ### Frontend
 
@@ -65,6 +69,11 @@ active workspace and use both `country_id` and `casename` when addressing a
 case. Leaving the workspace clears the active backend session but does not stop
 a running job.
 
+The Results route (`#/OGResults`) draws nothing until a run is chosen: "View"
+shows one run, "Compare" a reform against its baseline. The choice is kept in
+the route's optional query (`#/OGResults?case=...&base=...&reform=...`), which
+the page updates in place so refresh and shared links reopen the same view.
+
 ### Runtime data and outputs
 
 CLEWS continues to use:
@@ -77,6 +86,13 @@ OG-Core state is kept outside `WebAPP/DataStorage/` so CLEWS data discovery does
 not interpret OG-Core state as CLEWS models. `MUIOGO_OG_DATA_DIR` controls the
 location and defaults to `~/.muiogo/og-state`. It contains the calibration
 registry, install jobs, installer cache, and country-scoped cases:
+
+Each finished run also writes `results_meta.json`: start year, `T`, `S`, `J`,
+the age vector, income-group shares and labels (from OG-Core's
+`lambda_labels`), and steady-state population weights. The Results page labels
+and weights household outputs only from this file. Runs solved before it carried
+these fields are rebuilt once from their `model_params.pkl` by the worker's
+`meta` mode.
 
 ```text
 cases/<country_id>/<casename>/

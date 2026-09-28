@@ -104,6 +104,7 @@ def test_report_labels_groups_and_ages_from_metadata():
     report = OGReport.build_report(run(), run(y=2.2, c=((1.1, 3.3), (5.5, 7.7))))
     assert report["meta"]["group_labels"] == ["0-25%", "Top 75%"]
     assert report["meta"]["ages"] == [20, 21]
+    close(report["meta"]["weights"]["baseline"][1][1], 0.45)
     household = report["households"]["c"]
     close(household["overall"]["change"], 10.0)
     assert [round(g["change"], 9) for g in household["group_change"]] == [10.0, 10.0]
