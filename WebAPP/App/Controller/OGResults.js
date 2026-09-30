@@ -12,6 +12,9 @@ import * as D from "../Model/OGResultsData.js";
 const ECHARTS_URL = 'References/echarts/echarts-6.1.0.min.js';
 const RECENT_KEY = 'osy-ogc-results-recent';
 const RECENT_MAX = 5;
+// OG-Core builds each analysis table in a fresh worker process, so tables are kept
+// for the few most recent selections and returning to one costs nothing.
+const TABLE_CACHE_MAX = 5;
 const CATEGORY_ORDER = ['Output', 'Prices', 'Government', 'Households', 'Other', 'Diagnostics'];
 const HOUSEHOLD_ORDER = ['c', 'n', 'b_sp1', 'before_tax_income', 'labor_income', 'hh_net_taxes', 'etr', 'mtrx', 'mtry'];
 let PAGE_ID = 0;
@@ -49,6 +52,7 @@ export default class OGResults {
         OGResults.ex = null;
         OGResults.ssData = null;
         OGResults.tpiCache = Object.create(null);
+        OGResults.tableCache = new Map();
         OGResults.ogTables = Object.create(null);
         OGResults.activeOgTable = null;
         OGResults.initEvents();
@@ -259,7 +263,7 @@ export default class OGResults {
         OGResults.disposeCharts();
         OGResults.ssData = null;
         OGResults.tpiCache = Object.create(null);
-        OGResults.ogTables = Object.create(null);
+        OGResults.ogTables = OGResults.tablesFor(sel);
         OGResults.ex = null;
         $('#ogcRsIntro, #ogcRsError, #ogcRsView').hide();
         $('#ogcRsLoading').show();
@@ -818,11 +822,11 @@ export default class OGResults {
         OGResults.destroyGrid('ogcRsOgTable');
         let sel = OGResults.selection;
         let requestID = OGResults.requestID;
+        let tables = OGResults.ogTables;
         Ogc.getResultTable(spec.path, OGResults.workspace.country_id, sel.casename, sel.base, spec.baselineOnly ? null : sel.reform, spec.options)
             .then(rows => {
-                if (requestID != OGResults.requestID) return;
-                OGResults.ogTables[key] = rows;
-                render(rows);
+                tables[key] = rows;  // valid for the selection it was asked for, even if the user moved on
+                if (requestID == OGResults.requestID) render(rows);
             })
             .catch(error => {
                 if (requestID == OGResults.requestID && OGResults.activeOgTable == key) $('#ogcRsTableNote').text('This table could not be built. ' + String(error)).show();
@@ -971,6 +975,16 @@ export default class OGResults {
         window.location.hash = '#/OGParameters';
     }
 
+    // The OG-Core tables already built for a selection, most recently used last.
+    static tablesFor(selection){
+        let key = V.selectionKey(OGResults.workspace.country_id, selection);
+        let tables = OGResults.tableCache.get(key) || Object.create(null);
+        OGResults.tableCache.delete(key);
+        OGResults.tableCache.set(key, tables);
+        while (OGResults.tableCache.size > TABLE_CACHE_MAX) OGResults.tableCache.delete(OGResults.tableCache.keys().next().value);
+        return tables;
+    }
+
     static teardown(){
         OGResults.disposeCharts();
         $(window).off('.ogresults');
@@ -978,6 +992,9 @@ export default class OGResults {
     }
 
     static initEvents(){
+        // Leaving the page unbinds everything bound here, even when it never
+        // got past the loading or empty state.
+        $(window).on('hashchange.ogresults', () => { if (routePath() != '/OGResults') OGResults.teardown(); });
         $(document).on('click.ogresults', event => {
             if (!$(event.target).closest('#ogcResultsPage .ogc-action-menu').length) OGResults.closeMenus();
         }).on('keydown.ogresults', event => { if (event.key == 'Escape') OGResults.closeMenus(); });
