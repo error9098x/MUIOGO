@@ -145,3 +145,16 @@ test('a single run shows ratios and levels without change arrows', () => {
     assert.doesNotMatch(html, /fa-arrow-up|fa-arrow-down/);
     assert.match(html, /7\.00%/);
 });
+
+test('OG-Core long-run table shows interest rates in percentage points, not relative change', () => {
+    const rows = OGResults.macroLongRunRows([
+        {'% Change (or pp diff)': 0.2625, Baseline: 0.0708, Reform: 0.0710, Variable: 'Real interest rate ($r_t$)'},
+        {'% Change (or pp diff)': 0.626, Baseline: 2.8766, Reform: 2.8946, Variable: 'GDP ($Y_t$)'}
+    ]);
+    const rate = rows[0], gdp = rows[1];
+    assert.ok(Math.abs(rate.Change - 0.02) < 1e-9);
+    assert.ok(Math.abs(rate.Baseline - 7.08) < 1e-9);
+    assert.match(rate.Unit, /percentage points/);
+    assert.equal(gdp.Change, 0.626);
+    assert.match(gdp.Unit, /percent/);
+});

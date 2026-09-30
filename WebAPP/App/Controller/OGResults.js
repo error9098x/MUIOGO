@@ -15,11 +15,11 @@ const CATEGORY_ORDER = ['Output', 'Prices', 'Government', 'Households', 'Other',
 const HOUSEHOLD_ORDER = ['c', 'n', 'b_sp1', 'before_tax_income', 'labor_income', 'hh_net_taxes', 'etr', 'mtrx', 'mtry'];
 const EXPLORE_PATH_YEARS = 100;
 const OG_TABLES = [
-    {key: 'macro', label: 'Macro', path: 'getMacroTable', needs: 'transition', options: {num_years: 10, include_SS: true}},
     {key: 'macro_ss', label: 'Macro (long run)', path: 'getMacroTableSS', needs: 'compare'},
     {key: 'ineq', label: 'Inequality', path: 'getIneqTable'},
     {key: 'gini', label: 'Gini', path: 'getGiniTable'},
     {key: 'wealth', label: 'Wealth moments', path: 'getWealthMomentsTable', baselineOnly: true},
+    {key: 'macro', label: 'Macro (10 years)', path: 'getMacroTable', needs: 'transition', options: {num_years: 10, include_SS: true}},
     {key: 'revenue', label: 'Revenue decomposition', path: 'getRevenueDecomposition', needs: 'compare-transition'}
 ];
 let PAGE_ID = 0;
@@ -48,7 +48,29 @@ function plainTableText(value){
         .replace(/\s+/g, ' ').trim();
 }
 
+const RATE_ROW = /interest rate/i;
+
 export default class OGResults {
+    // OG-Core's long-run macro table gives one "% Change (or pp diff)" column that is
+    // a relative percent change for every row, including interest rates. Rates are
+    // shown in percentage points everywhere else on this page, so the same
+    // variable must not read differently here: rate rows are recomputed as a
+    // percentage-point change and every row states its unit.
+    static macroLongRunRows(rows){
+        return rows.map(row => {
+            let name = plainTableText(row.Variable);
+            let base = row.Baseline, reform = row.Reform;
+            let rate = RATE_ROW.test(String(name)) && V.finite(base) && V.finite(reform);
+            return {
+                Variable: row.Variable,
+                Baseline: rate ? base * 100 : base,
+                Reform: rate ? reform * 100 : reform,
+                Change: rate ? (reform - base) * 100 : row['% Change (or pp diff)'],
+                Unit: rate ? 'percent; change in percentage points' : 'model units; change in percent'
+            };
+        });
+    }
+
     static onLoad(){
         PAGE_ID++;
         OGResults.pageID = PAGE_ID;
@@ -999,6 +1021,7 @@ export default class OGResults {
         $('[data-rs-act="table-csv"]').prop('disabled', true);
         let render = rows => {
             if (OGResults.activeOgTable != key) return;
+            if (key == 'macro_ss' && $.isArray(rows) && rows.length && 'Variable' in rows[0] && 'Baseline' in rows[0]) rows = OGResults.macroLongRunRows(rows);
             if (!$.isArray(rows) || !rows.length){
                 OGResults.destroyGrid('ogcRsOgTable');
                 $('#ogcRsTableNote').text('OG-Core returned no rows for this table.').show();
