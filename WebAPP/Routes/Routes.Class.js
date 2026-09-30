@@ -207,7 +207,8 @@ export class Routes {
                 loadView(version, 'App/View/OGRuns.html', 'OGRuns', () => OGRuns.default.onLoad(sourcePage));
             }).catch(error => viewFailed(version, error));
         });
-        crossroads.addRoute('/OGResults', function() {
+        // the optional query carries the chosen run or comparison (see OGResults.syncUrl)
+        crossroads.addRoute('/OGResults:?query:', function() {
             if (!requireWorkspace()) return;
             enterWorkspace();
             let version = beginView();
